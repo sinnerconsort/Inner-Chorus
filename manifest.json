@@ -6,7 +6,7 @@
     "js": "index.js",
     "css": "style.css",
     "author": "Judas",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "description": "Dynamic inner voices that emerge from your choices, deaths, and traumas. Inspired by Slay the Princess.",
     "auto_update": false
 }

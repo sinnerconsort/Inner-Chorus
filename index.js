@@ -1043,8 +1043,30 @@ Generate the inner chorus reacting to this moment. Let the voices interact natur
         if (!isManual && !extensionSettings.autoTrigger) return;
         if (isGenerating) return;
 
-        const messageContent = messageData?.message || messageData?.mes || '';
+        // Handle different event formats from SillyTavern
+        let messageContent = '';
+        
+        if (typeof messageData === 'string') {
+            // Sometimes the event passes just a message ID
+            const context = getSTContext();
+            const chat = context?.chat || [];
+            const lastMsg = [...chat].reverse().find(m => !m.is_user);
+            messageContent = lastMsg?.mes || '';
+        } else if (messageData?.message) {
+            messageContent = messageData.message;
+        } else if (messageData?.mes) {
+            messageContent = messageData.mes;
+        } else {
+            // Fallback: get latest AI message from chat
+            const context = getSTContext();
+            const chat = context?.chat || [];
+            const lastMsg = [...chat].reverse().find(m => !m.is_user);
+            messageContent = lastMsg?.mes || '';
+        }
+
         if (!messageContent || messageContent.length < 10) return;
+        
+        log('Processing message...', isManual ? '(manual)' : '(auto)');
 
         isGenerating = true;
         const btn = document.getElementById('ic-manual-trigger');
@@ -1148,12 +1170,8 @@ Generate the inner chorus reacting to this moment. Let the voices interact natur
 
         // Save settings
         document.getElementById('ic-save-settings')?.addEventListener('click', saveSettings);
-
-        // ST Events
-        const context = getSTContext();
-        if (context?.eventSource) {
-            context.eventSource.on('message_received', (data) => onMessageReceived(data, false));
-        }
+        
+        // Note: ST events are registered in init() with retry logic
     }
 
     function applyFabPosition() {
@@ -1219,10 +1237,40 @@ Generate the inner chorus reacting to this moment. Let the voices interact natur
     // INITIALIZATION
     // ═══════════════════════════════════════════════════════════════
 
+    function registerSTEvents() {
+        const context = getSTContext();
+        if (context?.eventSource) {
+            const eventTypes = context.event_types || (typeof event_types !== 'undefined' ? event_types : null);
+            if (eventTypes?.MESSAGE_RECEIVED) {
+                context.eventSource.on(eventTypes.MESSAGE_RECEIVED, (data) => onMessageReceived(data, false));
+                log('✅ Registered MESSAGE_RECEIVED listener');
+                return true;
+            }
+        }
+        return false;
+    }
+
     function init() {
         log('Initializing...');
         loadState();
         createMainUI();
+        
+        // Try to register events immediately
+        if (!registerSTEvents()) {
+            // Retry after a delay if ST context isn't ready
+            log('Waiting for SillyTavern context...');
+            setTimeout(() => {
+                if (!registerSTEvents()) {
+                    log('Retrying event registration...');
+                    setTimeout(() => {
+                        if (!registerSTEvents()) {
+                            log('⚠️ Could not register auto-trigger. Manual trigger still works.');
+                        }
+                    }, 2000);
+                }
+            }, 1000);
+        }
+        
         log('Ready!', { activeVoices: Array.from(activeVoices) });
     }
 
