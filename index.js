@@ -1062,7 +1062,15 @@ Guidelines:
                     <div class="ic-section">
                         <div class="ic-section-header">
                             <span>Active Voices</span>
-                            <span class="ic-voice-count" id="ic-voice-count">0 awake</span>
+                            <div class="ic-header-actions">
+                                <button class="ic-btn ic-btn-sm" id="ic-clear-set" title="Remove all optional voices">
+                                    <i class="fa-solid fa-broom"></i>
+                                </button>
+                                <button class="ic-btn ic-btn-sm" id="ic-reset-set" title="Reset to defaults">
+                                    <i class="fa-solid fa-rotate-left"></i>
+                                </button>
+                                <span class="ic-voice-count" id="ic-voice-count">0 awake</span>
+                            </div>
                         </div>
                         <div class="ic-voices-list" id="ic-voices-list"></div>
                     </div>
@@ -1358,9 +1366,11 @@ Guidelines:
         
         countEl.textContent = `${activeVoices.size} awake`;
 
-        container.innerHTML = voices.map(voice => {
+        // Render current voices in set
+        let html = voices.map(voice => {
             const isAwake = activeVoices.has(voice.id);
             const memory = voiceMemories[voice.id];
+            const canRemove = !voice.cannotBeDisabled; // Can remove if not required
             
             return `
                 <div class="ic-voice-card ${isAwake ? 'ic-voice-awake' : 'ic-voice-dormant'}" 
@@ -1370,6 +1380,7 @@ Guidelines:
                         <span class="ic-voice-name" style="color: ${voice.color}">${voice.name}</span>
                         <div class="ic-voice-status">
                             ${voice.alwaysPresent ? '<span class="ic-badge">Always</span>' : ''}
+                            ${canRemove ? `<button class="ic-btn-icon ic-btn-remove" data-action="remove" title="Remove from set"><i class="fa-solid fa-xmark"></i></button>` : ''}
                             <span class="ic-status-dot ${isAwake ? 'ic-awake' : 'ic-dormant'}"></span>
                         </div>
                     </div>
@@ -1385,7 +1396,34 @@ Guidelines:
             `;
         }).join('');
 
-        // Add click handlers for toggle buttons
+        // Find voices NOT in current set (from STP defaults)
+        const availableVoices = Object.values(STP_VOICES).filter(v => !set.voices[v.id]);
+        
+        if (availableVoices.length > 0) {
+            html += `
+                <div class="ic-library-section">
+                    <div class="ic-library-header" id="ic-library-toggle">
+                        <i class="fa-solid fa-chevron-right"></i>
+                        <span>Voice Library (${availableVoices.length} available)</span>
+                    </div>
+                    <div class="ic-library-content" id="ic-library-content" style="display: none;">
+                        ${availableVoices.map(voice => `
+                            <div class="ic-library-voice" data-voice-id="${voice.id}">
+                                <span class="ic-library-voice-name" style="color: ${voice.color}">${voice.name}</span>
+                                <span class="ic-library-voice-desc">${voice.description}</span>
+                                <button class="ic-btn ic-btn-sm ic-btn-add" data-action="add">
+                                    <i class="fa-solid fa-plus"></i> Add
+                                </button>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        container.innerHTML = html;
+
+        // Toggle buttons (awaken/silence)
         container.querySelectorAll('.ic-btn-toggle').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 const card = e.target.closest('.ic-voice-card');
@@ -1399,6 +1437,79 @@ Guidelines:
                 }
             });
         });
+
+        // Remove buttons
+        container.querySelectorAll('.ic-btn-remove').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const card = e.target.closest('.ic-voice-card');
+                const voiceId = card.dataset.voiceId;
+                removeVoiceFromSet(voiceId);
+            });
+        });
+
+        // Library toggle
+        document.getElementById('ic-library-toggle')?.addEventListener('click', () => {
+            const content = document.getElementById('ic-library-content');
+            const icon = document.querySelector('#ic-library-toggle i');
+            if (content && icon) {
+                const isHidden = content.style.display === 'none';
+                content.style.display = isHidden ? 'block' : 'none';
+                icon.className = isHidden ? 'fa-solid fa-chevron-down' : 'fa-solid fa-chevron-right';
+            }
+        });
+
+        // Add buttons
+        container.querySelectorAll('.ic-btn-add').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const voiceEl = e.target.closest('.ic-library-voice');
+                const voiceId = voiceEl.dataset.voiceId;
+                addVoiceToSet(voiceId);
+            });
+        });
+    }
+
+    function removeVoiceFromSet(voiceId) {
+        const set = getCurrentVoiceSet();
+        const voice = set.voices[voiceId];
+        
+        if (!voice || voice.cannotBeDisabled) {
+            showToast('Cannot remove this voice', 'error', 2000);
+            return false;
+        }
+
+        // Remove from set
+        delete set.voices[voiceId];
+        
+        // Remove from active voices
+        activeVoices.delete(voiceId);
+        
+        // Remove memories
+        delete voiceMemories[voiceId];
+        
+        saveState();
+        renderVoicesList();
+        showToast(`${voice.name} removed`, 'info', 2000);
+        return true;
+    }
+
+    function addVoiceToSet(voiceId) {
+        const set = getCurrentVoiceSet();
+        
+        // Check if it's a default voice we can add back
+        const defaultVoice = STP_VOICES[voiceId];
+        if (!defaultVoice) {
+            showToast('Voice not found', 'error', 2000);
+            return false;
+        }
+
+        // Add to set (make a copy)
+        set.voices[voiceId] = { ...defaultVoice };
+        
+        saveState();
+        renderVoicesList();
+        showToast(`${defaultVoice.name} added!`, 'success', 2000);
+        return true;
     }
 
     function renderProfilesList() {
@@ -1753,6 +1864,48 @@ Guidelines:
             if (container) {
                 container.innerHTML = '<div class="ic-empty-state"><i class="fa-solid fa-comment-slash"></i><span>The voices are quiet...</span></div>';
             }
+        });
+
+        // Clear set (remove all optional voices)
+        document.getElementById('ic-clear-set')?.addEventListener('click', () => {
+            if (!confirm('Remove all optional voices from this set? Only the Narrator will remain.')) return;
+            
+            const set = getCurrentVoiceSet();
+            const voicesToRemove = Object.keys(set.voices).filter(id => {
+                const voice = set.voices[id];
+                return !voice.cannotBeDisabled;
+            });
+
+            voicesToRemove.forEach(id => {
+                delete set.voices[id];
+                activeVoices.delete(id);
+                delete voiceMemories[id];
+            });
+
+            saveState();
+            renderVoicesList();
+            showToast(`Cleared ${voicesToRemove.length} voices`, 'info', 2000);
+        });
+
+        // Reset set (restore all default voices)
+        document.getElementById('ic-reset-set')?.addEventListener('click', () => {
+            if (!confirm('Reset to default Slay the Princess voice set?')) return;
+            
+            const set = getCurrentVoiceSet();
+            // Restore all STP voices
+            Object.entries(STP_VOICES).forEach(([id, voice]) => {
+                set.voices[id] = { ...voice };
+            });
+
+            // Reset active to just narrator and hero
+            activeVoices.clear();
+            activeVoices.add('narrator');
+            activeVoices.add('hero');
+            voiceMemories = {};
+
+            saveState();
+            renderVoicesList();
+            showToast('Reset to defaults', 'success', 2000);
         });
 
         // Save settings

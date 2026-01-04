@@ -836,3 +836,123 @@ input[type="color"]::-webkit-color-swatch {
 .ic-active-profile strong {
     color: #90EE90;
 }
+
+
+/* ═══════════════════════════════════════════════════════════════
+   VOICE REMOVE & LIBRARY
+   ═══════════════════════════════════════════════════════════════ */
+
+.ic-btn-icon {
+    background: transparent;
+    border: none;
+    color: var(--ic-text-muted);
+    padding: 2px 6px;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+    font-size: 12px;
+}
+
+.ic-btn-remove:hover {
+    color: #FF6347;
+    background: rgba(255, 99, 71, 0.1);
+}
+
+.ic-library-section {
+    margin-top: 12px;
+    border: 1px dashed var(--ic-border);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.ic-library-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    background: rgba(124, 111, 159, 0.05);
+    cursor: pointer;
+    color: var(--ic-text-secondary);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    transition: all 0.2s ease;
+}
+
+.ic-library-header:hover {
+    background: rgba(124, 111, 159, 0.1);
+    color: var(--ic-text-primary);
+}
+
+.ic-library-header i {
+    font-size: 10px;
+    transition: transform 0.2s ease;
+}
+
+.ic-library-content {
+    padding: 8px;
+    background: var(--ic-bg-dark);
+}
+
+.ic-library-voice {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border-radius: 6px;
+    margin-bottom: 6px;
+    background: rgba(30, 30, 46, 0.5);
+    border-left: 2px solid var(--ic-border);
+}
+
+.ic-library-voice:last-child {
+    margin-bottom: 0;
+}
+
+.ic-library-voice:hover {
+    background: rgba(124, 111, 159, 0.1);
+}
+
+.ic-library-voice-name {
+    font-weight: 600;
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+.ic-library-voice-desc {
+    flex: 1;
+    font-size: 10px;
+    color: var(--ic-text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ic-btn-add {
+    flex-shrink: 0;
+    padding: 4px 8px;
+    font-size: 10px;
+}
+
+.ic-btn-add:hover {
+    background: rgba(144, 238, 144, 0.2);
+    border-color: #90EE90;
+    color: #90EE90;
+}
+
+
+/* Header actions row */
+.ic-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.ic-header-actions .ic-btn-sm {
+    padding: 4px 6px;
+    opacity: 0.7;
+}
+
+.ic-header-actions .ic-btn-sm:hover {
+    opacity: 1;
+}
