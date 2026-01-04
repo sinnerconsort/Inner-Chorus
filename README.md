@@ -19,22 +19,23 @@ Your character's psyche becomes a chorus of voices that comment, argue, and evol
 - Set to 0 to mute a voice without removing it
 - Higher loudness = more likely to be selected
 
-### 💔 Voice Relationships
-- **Tension** - voices that argue and contradict each other
-- **Alliance** - voices that support and agree
-- **AI-generated** or **user-customized** dynamics
-- Relationships influence how voices interact in the chorus
-- Click the ❤️‍🔥 button to auto-generate relationships
+### 💔 Voice Relationships (Bonds Tab)
+- **Dedicated Bonds tab** for relationship management
+- **Tension** (⚡) - voices that argue and contradict
+- **Alliance** (🤝) - voices that support and agree
+- **AI-generated** with one click
+- **Manual control** - add, remove, or cycle relationship types
+- **Custom dynamics** - describe how voices interact
 
 ### 🧠 Generate from Persona
 - Scan your **persona description** and **lorebook**
-- AI creates a **custom voice set** tailored to your character's psychology
+- AI creates a **custom voice set** tailored to your character
 - Choose how many voices (3/5/7)
 - Choose starting state (all dormant, narrator only, core voices, all active)
 
 ### 🔮 Context-Aware Spawning
 - AI analyzes **who your character is** and **how they react**
-- Same event → different characters → different (or no) voices
+- Same event → different characters → different voices
 - Creates **brand new voices** tailored to specific story moments
 - ⚠️ Uses additional API calls per message
 
@@ -61,41 +62,31 @@ Your character's psyche becomes a chorus of voices that comment, argue, and evol
 3. Enable in Extensions menu
 4. Configure API settings (requires separate LLM endpoint)
 
-## Configuration
+## Tab Overview
 
-### API Settings
-- **Endpoint**: Your LLM API endpoint (OpenAI-compatible)
-- **API Key**: Your API key
-- **Model**: Model to use for voice generation
-
-### Trigger Settings
-- **Auto-trigger**: Automatically generate chorus after AI messages
-- **Trigger Delay**: Wait time for streaming to complete
-- **Auto-spawn**: Basic keyword-based voice spawning
-- **Context-aware spawning**: AI analyzes persona + context (extra API calls)
+| Tab | Purpose |
+|-----|---------|
+| **Voices** | View, awaken/silence, adjust loudness |
+| **Bonds** | Manage voice relationships |
+| **Create** | Generate from persona or create manually |
+| **Profiles** | Save/load character configurations |
+| **Settings** | API, triggers, character context |
 
 ## Voice Badges
 
 | Badge | Meaning |
 |-------|---------|
-| **Always** | Voice is always present (like Narrator) |
+| **Always** | Voice is always present |
 | **Core** | Central personality voice |
-| **Persona** | Generated from persona analysis |
+| **Persona** | Generated from persona |
 | **Story** | Spawned from story events |
-
-## Relationship Types
-
-| Type | Icon | Meaning |
-|------|------|---------|
-| **Tension** | ⚡ | Voices argue, contradict, oppose |
-| **Alliance** | 🤝 | Voices support, agree, reinforce |
 
 ## Workflow Tips
 
 1. **Start Fresh**: Use "Generate from Persona" for a custom voice set
-2. **Add Relationships**: Click ❤️‍🔥 to generate voice dynamics
-3. **Tune Loudness**: Adjust sliders to control voice frequency
-4. **Organic Growth**: Set voices to dormant, let them awaken naturally  
+2. **Add Relationships**: Go to Bonds tab, click ✨ to auto-generate
+3. **Fine-tune**: Manually adjust relationships, cycle types with 🔄
+4. **Tune Loudness**: Adjust sliders to control voice frequency
 5. **Save Profiles**: Save your setup before major story events
 
 ## Credits
@@ -104,7 +95,7 @@ Inspired by:
 - **Slay the Princess** - The voice system and emergence mechanic
 - **Disco Elysium** - Skills as internal voices with personalities
 
-Created by the bad bitch Sinnerconsort for SillyTavern. Because I'd rather create extensions than actually RP now. Someone please stop me— or give me suggestions.
+Created by Judas for SillyTavern.
 
 ---
 

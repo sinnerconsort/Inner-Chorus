@@ -1731,9 +1731,9 @@ Based on this character's personality, background, fears, desires, and psycholog
                     <i class="fa-solid fa-users"></i>
                     <span>Voices</span>
                 </button>
-                <button class="ic-tab" data-tab="history">
-                    <i class="fa-solid fa-clock-rotate-left"></i>
-                    <span>History</span>
+                <button class="ic-tab" data-tab="bonds">
+                    <i class="fa-solid fa-heart-pulse"></i>
+                    <span>Bonds</span>
                 </button>
                 <button class="ic-tab" data-tab="create">
                     <i class="fa-solid fa-wand-magic-sparkles"></i>
@@ -1789,18 +1789,56 @@ Based on this character's personality, background, fears, desires, and psycholog
                     </button>
                 </div>
 
-                <!-- HISTORY TAB -->
-                <div class="ic-tab-content" data-tab-content="history">
+                <!-- BONDS TAB -->
+                <div class="ic-tab-content" data-tab-content="bonds">
                     <div class="ic-section">
                         <div class="ic-section-header">
-                            <span>Voice History</span>
+                            <span><i class="fa-solid fa-heart-pulse"></i> Voice Relationships</span>
+                            <button class="ic-btn ic-btn-sm" id="ic-auto-gen-bonds" title="Auto-generate with AI">
+                                <i class="fa-solid fa-wand-magic-sparkles"></i>
+                            </button>
                         </div>
-                        <div class="ic-history-list" id="ic-history-list">
+                        <p class="ic-hint" style="margin-bottom: 10px;">
+                            Define how voices interact. Voices in <strong style="color: #FF6347">tension</strong> will argue; voices in <strong style="color: #90EE90">alliance</strong> will agree.
+                        </p>
+                        <div class="ic-bonds-list" id="ic-bonds-list">
                             <div class="ic-empty-state">
-                                <i class="fa-solid fa-clock"></i>
-                                <span>No history yet...</span>
+                                <i class="fa-solid fa-heart-crack"></i>
+                                <span>No relationships defined</span>
+                                <small>Click ✨ to auto-generate or add manually below</small>
                             </div>
                         </div>
+                    </div>
+                    
+                    <div class="ic-section">
+                        <div class="ic-section-header">
+                            <span><i class="fa-solid fa-plus"></i> Add Relationship</span>
+                        </div>
+                        <div class="ic-form-row">
+                            <div class="ic-form-group" style="flex: 1">
+                                <label>Voice A</label>
+                                <select id="ic-bond-voice-a"></select>
+                            </div>
+                            <div class="ic-form-group" style="flex: 0 0 80px; text-align: center;">
+                                <label>Type</label>
+                                <select id="ic-bond-type">
+                                    <option value="tension">⚡ Tension</option>
+                                    <option value="alliance">🤝 Alliance</option>
+                                </select>
+                            </div>
+                            <div class="ic-form-group" style="flex: 1">
+                                <label>Voice B</label>
+                                <select id="ic-bond-voice-b"></select>
+                            </div>
+                        </div>
+                        <div class="ic-form-group">
+                            <label>Dynamic (optional)</label>
+                            <input type="text" id="ic-bond-dynamic" placeholder="e.g., They see the same emptiness differently..." />
+                        </div>
+                        <button class="ic-btn ic-btn-primary" id="ic-add-bond">
+                            <i class="fa-solid fa-link"></i>
+                            <span>Add Relationship</span>
+                        </button>
                     </div>
                 </div>
 
@@ -2190,23 +2228,21 @@ Based on this character's personality, background, fears, desires, and psycholog
                             `).join('')}
                         </div>
                     ` : ''}
-                    <div class="ic-voice-controls">
-                        <div class="ic-loudness-control">
-                            <label title="How often this voice speaks (0 = muted)">
-                                <i class="fa-solid fa-volume-${loudness === 0 ? 'xmark' : loudness < 4 ? 'low' : loudness < 7 ? 'high' : 'high'}"></i>
-                            </label>
-                            <input type="range" class="ic-loudness-slider" 
-                                   min="0" max="10" value="${loudness}" 
-                                   data-voice-id="${voice.id}" />
-                            <span class="ic-loudness-value">${loudness}</span>
-                        </div>
-                        ${!voice.cannotBeDisabled ? `
-                            <button class="ic-btn ic-btn-sm ic-btn-toggle" data-action="${isAwake ? 'silence' : 'awaken'}">
-                                <i class="fa-solid ${isAwake ? 'fa-volume-xmark' : 'fa-volume-high'}"></i>
-                                <span>${isAwake ? 'Silence' : 'Awaken'}</span>
-                            </button>
-                        ` : ''}
+                    <div class="ic-loudness-control">
+                        <label title="How often this voice speaks (0 = muted)">
+                            <i class="fa-solid fa-volume-${loudness === 0 ? 'xmark' : loudness < 4 ? 'low' : loudness < 7 ? 'high' : 'high'}"></i>
+                        </label>
+                        <input type="range" class="ic-loudness-slider" 
+                               min="0" max="10" value="${loudness}" 
+                               data-voice-id="${voice.id}" />
+                        <span class="ic-loudness-value">${loudness}</span>
                     </div>
+                    ${!voice.cannotBeDisabled ? `
+                        <button class="ic-btn ic-btn-sm ic-btn-toggle ic-btn-full" data-action="${isAwake ? 'silence' : 'awaken'}">
+                            <i class="fa-solid ${isAwake ? 'fa-volume-xmark' : 'fa-volume-high'}"></i>
+                            <span>${isAwake ? 'Silence' : 'Awaken'}</span>
+                        </button>
+                    ` : ''}
                 </div>
             `;
         }).join('');
@@ -2462,6 +2498,128 @@ Only include notable relationships, not every pair. Maximum 6-8 relationships.`;
         saveState();
         renderVoicesList();
         showToast(`${defaultVoice.name} added!`, 'success', 2000);
+        return true;
+    }
+
+    function renderBondsList() {
+        const container = document.getElementById('ic-bonds-list');
+        const voiceASelect = document.getElementById('ic-bond-voice-a');
+        const voiceBSelect = document.getElementById('ic-bond-voice-b');
+        
+        if (!container) return;
+
+        const set = getCurrentVoiceSet();
+        const voices = Object.values(set.voices);
+        const bonds = Object.entries(voiceRelationships);
+
+        // Populate voice dropdowns
+        if (voiceASelect && voiceBSelect) {
+            const voiceOptions = voices.map(v => 
+                `<option value="${v.id}">${v.name}</option>`
+            ).join('');
+            voiceASelect.innerHTML = voiceOptions;
+            voiceBSelect.innerHTML = voiceOptions;
+        }
+
+        // Render bonds list
+        if (bonds.length === 0) {
+            container.innerHTML = `
+                <div class="ic-empty-state">
+                    <i class="fa-solid fa-heart-crack"></i>
+                    <span>No relationships defined</span>
+                    <small>Click ✨ to auto-generate or add manually below</small>
+                </div>
+            `;
+            return;
+        }
+
+        container.innerHTML = bonds.map(([key, bond]) => {
+            const voiceA = set.voices[bond.voiceA];
+            const voiceB = set.voices[bond.voiceB];
+            
+            if (!voiceA || !voiceB) return '';
+
+            const typeIcon = bond.type === 'tension' ? 'fa-bolt' : 'fa-handshake';
+            const typeColor = bond.type === 'tension' ? '#FF6347' : '#90EE90';
+            const typeLabel = bond.type === 'tension' ? 'Tension' : 'Alliance';
+
+            return `
+                <div class="ic-bond-card" data-bond-key="${key}">
+                    <div class="ic-bond-voices">
+                        <span class="ic-bond-voice" style="color: ${voiceA.color}">${voiceA.name}</span>
+                        <span class="ic-bond-type" style="color: ${typeColor}">
+                            <i class="fa-solid ${typeIcon}"></i>
+                            ${typeLabel}
+                        </span>
+                        <span class="ic-bond-voice" style="color: ${voiceB.color}">${voiceB.name}</span>
+                    </div>
+                    ${bond.dynamic ? `<div class="ic-bond-dynamic">"${bond.dynamic}"</div>` : ''}
+                    <div class="ic-bond-actions">
+                        <button class="ic-btn-icon ic-btn-cycle" data-action="cycle" title="Change type">
+                            <i class="fa-solid fa-repeat"></i>
+                        </button>
+                        <button class="ic-btn-icon ic-btn-remove" data-action="remove" title="Remove">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
+                    </div>
+                </div>
+            `;
+        }).filter(Boolean).join('');
+
+        // Add event listeners
+        container.querySelectorAll('.ic-btn-remove').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const card = e.target.closest('.ic-bond-card');
+                const key = card.dataset.bondKey;
+                delete voiceRelationships[key];
+                saveState();
+                renderBondsList();
+                renderVoicesList();
+                showToast('Relationship removed', 'info', 2000);
+            });
+        });
+
+        container.querySelectorAll('.ic-btn-cycle').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const card = e.target.closest('.ic-bond-card');
+                const key = card.dataset.bondKey;
+                const bond = voiceRelationships[key];
+                if (bond) {
+                    // Cycle: tension -> alliance -> tension
+                    bond.type = bond.type === 'tension' ? 'alliance' : 'tension';
+                    saveState();
+                    renderBondsList();
+                    renderVoicesList();
+                }
+            });
+        });
+    }
+
+    function addBond(voiceA, voiceB, type, dynamic = '') {
+        if (voiceA === voiceB) {
+            showToast('Cannot create relationship with self', 'error', 2000);
+            return false;
+        }
+
+        const key = [voiceA, voiceB].sort().join('_');
+        
+        if (voiceRelationships[key]) {
+            showToast('Relationship already exists - use cycle button to change type', 'info', 2000);
+            return false;
+        }
+
+        voiceRelationships[key] = {
+            voiceA,
+            voiceB,
+            type,
+            dynamic,
+            userSet: true
+        };
+
+        saveState();
+        renderBondsList();
+        renderVoicesList();
+        showToast('Relationship added!', 'success', 2000);
         return true;
     }
 
@@ -2848,6 +3006,7 @@ Only include notable relationships, not every pair. Maximum 6-8 relationships.`;
             try {
                 const count = await generateVoiceRelationships();
                 hideToast(loadingToast);
+                renderBondsList();
                 showToast(`Generated ${count} relationships!`, 'success', 3000);
             } catch (error) {
                 hideToast(loadingToast);
@@ -2856,6 +3015,50 @@ Only include notable relationships, not every pair. Maximum 6-8 relationships.`;
                 btn.disabled = false;
                 btn.innerHTML = '<i class="fa-solid fa-heart-pulse"></i>';
             }
+        });
+
+        // Auto-generate bonds from Bonds tab
+        document.getElementById('ic-auto-gen-bonds')?.addEventListener('click', async () => {
+            const btn = document.getElementById('ic-auto-gen-bonds');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+            
+            const loadingToast = showToast('Analyzing voice dynamics...', 'loading');
+
+            try {
+                const count = await generateVoiceRelationships();
+                hideToast(loadingToast);
+                renderBondsList();
+                showToast(`Generated ${count} relationships!`, 'success', 3000);
+            } catch (error) {
+                hideToast(loadingToast);
+                showToast('Failed to generate relationships', 'error', 3000);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i>';
+            }
+        });
+
+        // Add bond manually
+        document.getElementById('ic-add-bond')?.addEventListener('click', () => {
+            const voiceA = document.getElementById('ic-bond-voice-a')?.value;
+            const voiceB = document.getElementById('ic-bond-voice-b')?.value;
+            const type = document.getElementById('ic-bond-type')?.value || 'tension';
+            const dynamic = document.getElementById('ic-bond-dynamic')?.value?.trim() || '';
+
+            if (!voiceA || !voiceB) {
+                showToast('Select two voices', 'error', 2000);
+                return;
+            }
+
+            if (addBond(voiceA, voiceB, type, dynamic)) {
+                document.getElementById('ic-bond-dynamic').value = '';
+            }
+        });
+
+        // Render bonds when switching to Bonds tab
+        document.querySelector('[data-tab="bonds"]')?.addEventListener('click', () => {
+            setTimeout(renderBondsList, 100);
         });
 
         // Clear set (remove all optional voices)

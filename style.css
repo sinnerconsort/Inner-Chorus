@@ -1161,3 +1161,74 @@ input[type="color"]::-webkit-color-swatch {
     color: #A9A9A9;
     border: 1px solid rgba(169, 169, 169, 0.3);
 }
+
+
+/* Full width button */
+.ic-btn-full {
+    width: 100%;
+    margin-top: 8px;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   BONDS TAB
+   ═══════════════════════════════════════════════════════════════ */
+
+.ic-bonds-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.ic-bond-card {
+    background: var(--ic-bg-dark);
+    border-radius: 8px;
+    padding: 10px;
+    position: relative;
+}
+
+.ic-bond-voices {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.ic-bond-voice {
+    font-weight: 600;
+    font-size: 12px;
+}
+
+.ic-bond-type {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.3);
+}
+
+.ic-bond-dynamic {
+    font-size: 10px;
+    color: var(--ic-text-muted);
+    font-style: italic;
+    text-align: center;
+    margin-top: 6px;
+}
+
+.ic-bond-actions {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    display: flex;
+    gap: 4px;
+}
+
+.ic-btn-cycle {
+    color: var(--ic-text-muted);
+}
+
+.ic-btn-cycle:hover {
+    color: var(--ic-accent);
+}
