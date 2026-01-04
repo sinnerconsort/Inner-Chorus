@@ -104,7 +104,7 @@ Inspired by:
 - **Slay the Princess** - The voice system and emergence mechanic
 - **Disco Elysium** - Skills as internal voices with personalities
 
-Created by Judas for SillyTavern.
+Created by the bad bitch Sinnerconsort for SillyTavern. Because I'd rather create extensions than actually RP now. Someone please stop me— or give me suggestions.
 
 ---
 
