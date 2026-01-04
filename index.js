@@ -221,8 +221,11 @@
         maxVoices: 5,
         autoTrigger: true,
         autoSpawn: true, // Auto-detect events that spawn new voices
+        triggerDelay: 1500, // ms to wait after message received before triggering (for streaming)
         // Active Voice Set
         activeSetId: 'stp_default',
+        // Active Persona Profile
+        activeProfileId: null,
         // Narrator POV
         povStyle: 'second', // second, third, first
         characterName: '',
@@ -250,6 +253,26 @@
         }
     };
 
+    // Persona Profiles - saved configurations per character
+    let personaProfiles = {};
+    /* Profile structure:
+    {
+        id: 'profile_123',
+        name: 'Somnolence',
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        // Voice configuration
+        voiceSetId: 'stp_default',
+        activeVoices: ['narrator', 'hero', 'smitten'],
+        voiceMemories: { smitten: 'I remember...' },
+        customVoices: { limerence: {...} }, // Voices created for this profile
+        // Character context
+        characterName: 'Somnolence',
+        characterContext: 'A vessel created by Sleep...',
+        povStyle: 'second'
+    }
+    */
+
     // Active voices - which voices are currently "awake" in this playthrough
     let activeVoices = new Set(['narrator', 'hero']); // Start with Narrator and Hero
 
@@ -260,6 +283,7 @@
     let voiceHistory = [];
 
     let isGenerating = false;
+    let triggerTimeout = null; // For delayed auto-trigger
 
     // ═══════════════════════════════════════════════════════════════
     // SILLYTAVERN CONTEXT
@@ -278,6 +302,7 @@
         const state = {
             settings: extensionSettings,
             voiceSets,
+            personaProfiles,
             activeVoices: Array.from(activeVoices),
             voiceMemories,
             voiceHistory: voiceHistory.slice(-50) // Keep last 50 entries
@@ -310,6 +335,7 @@
             if (state) {
                 extensionSettings = { ...DEFAULT_SETTINGS, ...state.settings };
                 if (state.voiceSets) voiceSets = state.voiceSets;
+                if (state.personaProfiles) personaProfiles = state.personaProfiles;
                 if (state.activeVoices) activeVoices = new Set(state.activeVoices);
                 if (state.voiceMemories) voiceMemories = state.voiceMemories;
                 if (state.voiceHistory) voiceHistory = state.voiceHistory;
@@ -329,6 +355,104 @@
         } catch (e) {
             console.error('[Inner Chorus] Failed to load state:', e);
         }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // PERSONA PROFILE MANAGEMENT
+    // ═══════════════════════════════════════════════════════════════
+
+    function createProfile(name) {
+        const id = 'profile_' + Date.now();
+        const profile = {
+            id,
+            name,
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+            voiceSetId: extensionSettings.activeSetId,
+            activeVoices: Array.from(activeVoices),
+            voiceMemories: { ...voiceMemories },
+            customVoices: {},
+            characterName: extensionSettings.characterName,
+            characterContext: extensionSettings.characterContext,
+            povStyle: extensionSettings.povStyle
+        };
+        
+        personaProfiles[id] = profile;
+        saveState();
+        return profile;
+    }
+
+    function saveCurrentToProfile(profileId) {
+        const profile = personaProfiles[profileId];
+        if (!profile) return false;
+
+        // Get custom voices (ones not in the default STP set)
+        const customVoices = {};
+        const currentSet = getCurrentVoiceSet();
+        for (const [voiceId, voice] of Object.entries(currentSet.voices)) {
+            if (!STP_VOICES[voiceId]) {
+                customVoices[voiceId] = voice;
+            }
+        }
+
+        profile.updatedAt = Date.now();
+        profile.voiceSetId = extensionSettings.activeSetId;
+        profile.activeVoices = Array.from(activeVoices);
+        profile.voiceMemories = { ...voiceMemories };
+        profile.customVoices = customVoices;
+        profile.characterName = extensionSettings.characterName;
+        profile.characterContext = extensionSettings.characterContext;
+        profile.povStyle = extensionSettings.povStyle;
+
+        saveState();
+        return true;
+    }
+
+    function loadProfile(profileId) {
+        const profile = personaProfiles[profileId];
+        if (!profile) return false;
+
+        // Set the voice set
+        extensionSettings.activeSetId = profile.voiceSetId || 'stp_default';
+        
+        // Load active voices
+        activeVoices = new Set(profile.activeVoices || ['narrator', 'hero']);
+        
+        // Load voice memories
+        voiceMemories = { ...profile.voiceMemories } || {};
+        
+        // Merge custom voices into current set
+        if (profile.customVoices) {
+            const currentSet = getCurrentVoiceSet();
+            for (const [voiceId, voice] of Object.entries(profile.customVoices)) {
+                currentSet.voices[voiceId] = voice;
+            }
+        }
+
+        // Load character context
+        extensionSettings.characterName = profile.characterName || '';
+        extensionSettings.characterContext = profile.characterContext || '';
+        extensionSettings.povStyle = profile.povStyle || 'second';
+        extensionSettings.activeProfileId = profileId;
+
+        saveState();
+        return true;
+    }
+
+    function deleteProfile(profileId) {
+        if (personaProfiles[profileId]) {
+            delete personaProfiles[profileId];
+            if (extensionSettings.activeProfileId === profileId) {
+                extensionSettings.activeProfileId = null;
+            }
+            saveState();
+            return true;
+        }
+        return false;
+    }
+
+    function getProfileList() {
+        return Object.values(personaProfiles).sort((a, b) => b.updatedAt - a.updatedAt);
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -923,6 +1047,10 @@ Guidelines:
                     <i class="fa-solid fa-wand-magic-sparkles"></i>
                     <span>Create</span>
                 </button>
+                <button class="ic-tab" data-tab="profiles">
+                    <i class="fa-solid fa-user-circle"></i>
+                    <span>Profiles</span>
+                </button>
                 <button class="ic-tab" data-tab="settings">
                     <i class="fa-solid fa-gear"></i>
                     <span>Settings</span>
@@ -1081,6 +1209,51 @@ Guidelines:
                     </div>
                 </div>
 
+                <!-- PROFILES TAB -->
+                <div class="ic-tab-content" data-tab-content="profiles">
+                    <div class="ic-section">
+                        <div class="ic-section-header">
+                            <span><i class="fa-solid fa-save"></i> Save Current State</span>
+                        </div>
+                        <p class="ic-hint" style="margin-bottom: 10px;">
+                            Save your current voices, memories, and character context as a profile.
+                        </p>
+                        <div class="ic-form-row">
+                            <div class="ic-form-group" style="flex: 2">
+                                <input type="text" id="ic-new-profile-name" placeholder="Profile name (e.g., Somnolence)" />
+                            </div>
+                            <button class="ic-btn ic-btn-primary" id="ic-create-profile">
+                                <i class="fa-solid fa-plus"></i>
+                                <span>Save</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="ic-section">
+                        <div class="ic-section-header">
+                            <span><i class="fa-solid fa-folder-open"></i> Saved Profiles</span>
+                            <span class="ic-profile-count" id="ic-profile-count">0 profiles</span>
+                        </div>
+                        <div class="ic-profiles-list" id="ic-profiles-list">
+                            <div class="ic-empty-state">
+                                <i class="fa-solid fa-user-slash"></i>
+                                <span>No saved profiles yet</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="ic-section ic-active-profile-section" id="ic-active-profile-section" style="display: none;">
+                        <div class="ic-section-header">
+                            <span><i class="fa-solid fa-user-check"></i> Active Profile</span>
+                        </div>
+                        <div class="ic-active-profile" id="ic-active-profile"></div>
+                        <button class="ic-btn ic-btn-sm" id="ic-update-profile" style="margin-top: 8px;">
+                            <i class="fa-solid fa-save"></i>
+                            <span>Update Profile</span>
+                        </button>
+                    </div>
+                </div>
+
                 <!-- SETTINGS TAB -->
                 <div class="ic-tab-content" data-tab-content="settings">
                     <div class="ic-section">
@@ -1127,6 +1300,11 @@ Guidelines:
                             </label>
                         </div>
                         <div class="ic-form-group">
+                            <label>Trigger Delay (ms)</label>
+                            <input type="number" id="ic-trigger-delay" min="500" max="5000" step="100" value="1500" />
+                            <small class="ic-hint">Wait time after message received (for streaming to complete)</small>
+                        </div>
+                        <div class="ic-form-group">
                             <label class="ic-checkbox">
                                 <input type="checkbox" id="ic-auto-spawn" checked />
                                 <span>Auto-spawn voices from events</span>
@@ -1165,6 +1343,7 @@ Guidelines:
         setupEventListeners();
         populateSettings();
         renderVoicesList();
+        renderProfilesList();
         applyFabPosition();
         makeFabDraggable();
     }
@@ -1220,6 +1399,104 @@ Guidelines:
                 }
             });
         });
+    }
+
+    function renderProfilesList() {
+        const container = document.getElementById('ic-profiles-list');
+        const countEl = document.getElementById('ic-profile-count');
+        const activeSection = document.getElementById('ic-active-profile-section');
+        const activeProfileEl = document.getElementById('ic-active-profile');
+        
+        if (!container) return;
+
+        const profiles = getProfileList();
+        countEl.textContent = `${profiles.length} profile${profiles.length !== 1 ? 's' : ''}`;
+
+        if (profiles.length === 0) {
+            container.innerHTML = `
+                <div class="ic-empty-state">
+                    <i class="fa-solid fa-user-slash"></i>
+                    <span>No saved profiles yet</span>
+                </div>
+            `;
+            activeSection.style.display = 'none';
+            return;
+        }
+
+        container.innerHTML = profiles.map(profile => {
+            const isActive = extensionSettings.activeProfileId === profile.id;
+            const voiceCount = profile.activeVoices?.length || 0;
+            const date = new Date(profile.updatedAt).toLocaleDateString();
+            
+            return `
+                <div class="ic-profile-card ${isActive ? 'ic-profile-active' : ''}" data-profile-id="${profile.id}">
+                    <div class="ic-profile-header">
+                        <span class="ic-profile-name">${profile.name}</span>
+                        ${isActive ? '<span class="ic-badge ic-badge-active">Active</span>' : ''}
+                    </div>
+                    <div class="ic-profile-meta">
+                        <span>${voiceCount} voices</span>
+                        <span>•</span>
+                        <span>${date}</span>
+                    </div>
+                    <div class="ic-profile-actions">
+                        ${!isActive ? `
+                            <button class="ic-btn ic-btn-sm ic-btn-load" data-action="load">
+                                <i class="fa-solid fa-folder-open"></i>
+                                <span>Load</span>
+                            </button>
+                        ` : ''}
+                        <button class="ic-btn ic-btn-sm ic-btn-delete" data-action="delete">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        // Add click handlers
+        container.querySelectorAll('.ic-btn-load').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const card = e.target.closest('.ic-profile-card');
+                const profileId = card.dataset.profileId;
+                const profile = personaProfiles[profileId];
+                
+                if (loadProfile(profileId)) {
+                    showToast(`Loaded profile: ${profile.name}`, 'success', 2000);
+                    renderProfilesList();
+                    renderVoicesList();
+                    populateSettings();
+                }
+            });
+        });
+
+        container.querySelectorAll('.ic-btn-delete').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const card = e.target.closest('.ic-profile-card');
+                const profileId = card.dataset.profileId;
+                const profile = personaProfiles[profileId];
+                
+                if (confirm(`Delete profile "${profile.name}"?`)) {
+                    deleteProfile(profileId);
+                    showToast('Profile deleted', 'info', 2000);
+                    renderProfilesList();
+                }
+            });
+        });
+
+        // Show active profile section if one is active
+        const activeProfile = personaProfiles[extensionSettings.activeProfileId];
+        if (activeProfile && activeProfileEl) {
+            activeSection.style.display = 'block';
+            activeProfileEl.innerHTML = `
+                <strong>${activeProfile.name}</strong>
+                <div class="ic-profile-meta" style="margin-top: 4px;">
+                    ${activeProfile.activeVoices?.length || 0} voices • Updated ${new Date(activeProfile.updatedAt).toLocaleDateString()}
+                </div>
+            `;
+        } else {
+            activeSection.style.display = 'none';
+        }
     }
 
     function displayChorus(voices) {
@@ -1288,6 +1565,7 @@ Guidelines:
         setVal('ic-min-voices', s.minVoices);
         setVal('ic-max-voices', s.maxVoices);
         setChecked('ic-auto-trigger', s.autoTrigger);
+        setVal('ic-trigger-delay', s.triggerDelay);
         setChecked('ic-auto-spawn', s.autoSpawn);
         setVal('ic-pov-style', s.povStyle);
         setVal('ic-character-name', s.characterName);
@@ -1307,6 +1585,7 @@ Guidelines:
         extensionSettings.minVoices = getNum('ic-min-voices', 2);
         extensionSettings.maxVoices = getNum('ic-max-voices', 5);
         extensionSettings.autoTrigger = getChecked('ic-auto-trigger');
+        extensionSettings.triggerDelay = getNum('ic-trigger-delay', 1500);
         extensionSettings.autoSpawn = getChecked('ic-auto-spawn');
         extensionSettings.povStyle = getVal('ic-pov-style');
         extensionSettings.characterName = getVal('ic-character-name');
@@ -1319,6 +1598,32 @@ Guidelines:
     // ═══════════════════════════════════════════════════════════════
     // EVENT HANDLERS
     // ═══════════════════════════════════════════════════════════════
+
+    // Wrapper for auto-triggered messages - adds delay to let streaming complete
+    function onMessageReceivedDelayed(messageData) {
+        // Clear any pending trigger
+        if (triggerTimeout) {
+            clearTimeout(triggerTimeout);
+            triggerTimeout = null;
+        }
+
+        // Don't even queue if auto-trigger is disabled
+        if (!extensionSettings.autoTrigger) return;
+
+        const delay = extensionSettings.triggerDelay || 1500;
+        log(`Auto-trigger queued (${delay}ms delay)...`);
+
+        triggerTimeout = setTimeout(() => {
+            triggerTimeout = null;
+            // Re-fetch the latest message content after delay
+            const context = getSTContext();
+            const chat = context?.chat || [];
+            const lastMsg = [...chat].reverse().find(m => !m.is_user);
+            if (lastMsg?.mes && lastMsg.mes.length >= 10) {
+                onMessageReceived({ message: lastMsg.mes }, false);
+            }
+        }, delay);
+    }
 
     async function onMessageReceived(messageData, isManual = false) {
         if (!extensionSettings.enabled) return;
@@ -1536,6 +1841,37 @@ Guidelines:
             }
         });
         
+        // ═══ PROFILE EVENTS ═══
+        
+        // Create new profile
+        document.getElementById('ic-create-profile')?.addEventListener('click', () => {
+            const nameInput = document.getElementById('ic-new-profile-name');
+            const name = nameInput?.value?.trim();
+            
+            if (!name) {
+                showToast('Enter a profile name!', 'error', 2000);
+                return;
+            }
+
+            const profile = createProfile(name);
+            showToast(`Profile "${name}" created!`, 'success', 2000);
+            nameInput.value = '';
+            renderProfilesList();
+        });
+
+        // Update active profile
+        document.getElementById('ic-update-profile')?.addEventListener('click', () => {
+            const profileId = extensionSettings.activeProfileId;
+            if (!profileId || !personaProfiles[profileId]) {
+                showToast('No active profile to update', 'error', 2000);
+                return;
+            }
+
+            saveCurrentToProfile(profileId);
+            showToast('Profile updated!', 'success', 2000);
+            renderProfilesList();
+        });
+        
         // Note: ST events are registered in init() with retry logic
     }
 
@@ -1607,8 +1943,9 @@ Guidelines:
         if (context?.eventSource) {
             const eventTypes = context.event_types || (typeof event_types !== 'undefined' ? event_types : null);
             if (eventTypes?.MESSAGE_RECEIVED) {
-                context.eventSource.on(eventTypes.MESSAGE_RECEIVED, (data) => onMessageReceived(data, false));
-                log('✅ Registered MESSAGE_RECEIVED listener');
+                // Use delayed wrapper for auto-triggers to let streaming complete
+                context.eventSource.on(eventTypes.MESSAGE_RECEIVED, onMessageReceivedDelayed);
+                log('✅ Registered MESSAGE_RECEIVED listener (with delay)');
                 return true;
             }
         }

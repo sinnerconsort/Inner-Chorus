@@ -755,3 +755,84 @@ input[type="color"]::-webkit-color-swatch {
         font-size: 16px;
     }
 }
+
+
+/* ═══════════════════════════════════════════════════════════════
+   PROFILE CARDS
+   ═══════════════════════════════════════════════════════════════ */
+
+.ic-profiles-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.ic-profile-card {
+    background: var(--ic-bg-dark);
+    border-radius: 8px;
+    padding: 10px 12px;
+    border-left: 3px solid var(--ic-accent);
+    transition: all 0.2s ease;
+}
+
+.ic-profile-card.ic-profile-active {
+    border-left-color: #90EE90;
+    background: rgba(144, 238, 144, 0.05);
+}
+
+.ic-profile-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+}
+
+.ic-profile-name {
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--ic-text-primary);
+}
+
+.ic-profile-meta {
+    font-size: 10px;
+    color: var(--ic-text-muted);
+    display: flex;
+    gap: 6px;
+}
+
+.ic-profile-actions {
+    display: flex;
+    gap: 6px;
+    margin-top: 8px;
+}
+
+.ic-badge-active {
+    background: rgba(144, 238, 144, 0.2);
+    color: #90EE90;
+}
+
+.ic-btn-delete {
+    color: var(--ic-text-muted);
+}
+
+.ic-btn-delete:hover {
+    color: #FF6347;
+    border-color: #FF6347;
+}
+
+.ic-active-profile-section {
+    background: linear-gradient(135deg, rgba(144, 238, 144, 0.05) 0%, rgba(30, 30, 46, 0.5) 100%);
+    border-color: rgba(144, 238, 144, 0.3);
+}
+
+.ic-active-profile {
+    padding: 8px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 6px;
+}
+
+.ic-active-profile strong {
+    color: #90EE90;
+}
