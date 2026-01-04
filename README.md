@@ -13,23 +13,34 @@ Your character's psyche becomes a chorus of voices that comment, argue, and evol
 - Voices can be **awakened/silenced** on demand
 - Full **customization** of voice personalities
 
+### 🔊 Voice Loudness
+- **Per-voice volume slider** (0-10)
+- Control how often each voice speaks
+- Set to 0 to mute a voice without removing it
+- Higher loudness = more likely to be selected
+
+### 💔 Voice Relationships
+- **Tension** - voices that argue and contradict each other
+- **Alliance** - voices that support and agree
+- **AI-generated** or **user-customized** dynamics
+- Relationships influence how voices interact in the chorus
+- Click the ❤️‍🔥 button to auto-generate relationships
+
 ### 🧠 Generate from Persona
 - Scan your **persona description** and **lorebook**
 - AI creates a **custom voice set** tailored to your character's psychology
 - Choose how many voices (3/5/7)
 - Choose starting state (all dormant, narrator only, core voices, all active)
-- Start fresh or add to existing voices
 
 ### 🔮 Context-Aware Spawning
 - AI analyzes **who your character is** and **how they react**
 - Same event → different characters → different (or no) voices
-- Considers persona, lorebook, recent story, and user's reaction
-- Can create **brand new voices** tailored to specific moments
+- Creates **brand new voices** tailored to specific story moments
 - ⚠️ Uses additional API calls per message
 
 ### 📚 Voice Management
 - **Remove** individual voices from your set
-- **Voice Library** to add back removed default voices
+- **Voice Library** to add back removed voices
 - **Clear All** to start with empty template
 - **Reset** to restore defaults
 
@@ -39,14 +50,9 @@ Your character's psyche becomes a chorus of voices that comment, argue, and evol
 - Update profiles as your character evolves
 
 ### 📤 Export / Import
-- **Export All** - Download complete backup (all profiles)
-- **Copy Current** - Copy current voice set to clipboard (for sharing)
-- **Import** - Load profiles or voice sets from JSON files
-
-### ✨ Voice Creator
-- **Generate from description**: "A paranoid voice born from betrayal..."
-- **Manual editor** for full control
-- **Preview** before saving
+- **Export All** - Download complete backup
+- **Copy Current** - Share voice sets with others
+- **Import** - Load from JSON files
 
 ## Installation
 
@@ -64,48 +70,33 @@ Your character's psyche becomes a chorus of voices that comment, argue, and evol
 
 ### Trigger Settings
 - **Auto-trigger**: Automatically generate chorus after AI messages
-- **Trigger Delay**: Wait time for streaming to complete (default 1500ms)
+- **Trigger Delay**: Wait time for streaming to complete
 - **Auto-spawn**: Basic keyword-based voice spawning
-- **Context-aware spawning**: AI analyzes persona + context (⚠️ extra API calls)
-
-### Character Context
-- **POV Style**: Second/third/first person
-- **Character Name**: For third-person references
-- **Character Context**: Who is this character? (Enhances contextual spawning)
+- **Context-aware spawning**: AI analyzes persona + context (extra API calls)
 
 ## Voice Badges
 
 | Badge | Meaning |
 |-------|---------|
 | **Always** | Voice is always present (like Narrator) |
-| **Core** | Central personality voice (from persona generation) |
+| **Core** | Central personality voice |
 | **Persona** | Generated from persona analysis |
 | **Story** | Spawned from story events |
+
+## Relationship Types
+
+| Type | Icon | Meaning |
+|------|------|---------|
+| **Tension** | ⚡ | Voices argue, contradict, oppose |
+| **Alliance** | 🤝 | Voices support, agree, reinforce |
 
 ## Workflow Tips
 
 1. **Start Fresh**: Use "Generate from Persona" for a custom voice set
-2. **Organic Growth**: Set voices to dormant, let them awaken naturally  
-3. **Save Profiles**: Save your setup before major story events
-4. **Character Context**: More detail = smarter contextual spawning
-5. **Share Voice Sets**: Use "Copy Current" to share with others
-
-## Default Voice Set
-
-| Voice | Spawns From |
-|-------|-------------|
-| The Narrator | Always present |
-| The Hero | Always present |
-| The Broken | Pathetic death, despair |
-| The Cheated | Stolen victory |
-| The Cold | Heartless choice |
-| The Contrarian | Nonsensical choice |
-| The Hunted | Fear-driven death |
-| The Opportunist | Taking advantage |
-| The Paranoid | Cowardly choice |
-| The Skeptic | Radical doubt |
-| The Smitten | Acting on feelings |
-| The Stubborn | Fighting to the end |
+2. **Add Relationships**: Click ❤️‍🔥 to generate voice dynamics
+3. **Tune Loudness**: Adjust sliders to control voice frequency
+4. **Organic Growth**: Set voices to dormant, let them awaken naturally  
+5. **Save Profiles**: Save your setup before major story events
 
 ## Credits
 
@@ -113,7 +104,7 @@ Inspired by:
 - **Slay the Princess** - The voice system and emergence mechanic
 - **Disco Elysium** - Skills as internal voices with personalities
 
-Created by the bad bitch Sinnerconsort for SillyTavern. Because I'd rather create extensions than actually RP now. Someone please stop me— or give me suggestions.
+Created by Judas for SillyTavern.
 
 ---
 
