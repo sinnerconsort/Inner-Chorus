@@ -221,6 +221,8 @@
         maxVoices: 5,
         autoTrigger: true,
         autoSpawn: true, // Auto-detect events that spawn new voices
+        contextualSpawn: true, // Use AI to analyze persona/context for smart spawning
+        contextualSpawnDelay: 3000, // Additional delay for contextual analysis (after normal delay)
         triggerDelay: 1500, // ms to wait after message received before triggering (for streaming)
         // Active Voice Set
         activeSetId: 'stp_default',
@@ -554,6 +556,268 @@
             
             awakenVoice(spawn.voiceId, memory);
         }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // CONTEXT-AWARE SPAWNING SYSTEM
+    // ═══════════════════════════════════════════════════════════════
+
+    // Event categories that might spawn voices
+    const EVENT_CATEGORIES = {
+        humiliation: {
+            keywords: ['humiliated', 'embarrassed', 'shamed', 'mocked', 'laughed at', 'ridiculed', 'degraded', 'belittled'],
+            description: 'The character was publicly shamed or humiliated'
+        },
+        betrayal: {
+            keywords: ['betrayed', 'backstabbed', 'lied to', 'deceived', 'double-crossed', 'sold out', 'abandoned'],
+            description: 'The character was betrayed by someone they trusted'
+        },
+        loss: {
+            keywords: ['died', 'death', 'lost', 'gone forever', 'never see again', 'funeral', 'buried', 'mourning'],
+            description: 'The character experienced significant loss'
+        },
+        trauma: {
+            keywords: ['trauma', 'nightmare', 'flashback', 'ptsd', 'haunted', 'scarred', 'violated', 'attacked'],
+            description: 'The character experienced or relived trauma'
+        },
+        rejection: {
+            keywords: ['rejected', 'refused', 'unwanted', 'not good enough', 'dismissed', 'cast out', 'alone'],
+            description: 'The character faced rejection or abandonment'
+        },
+        powerlessness: {
+            keywords: ['helpless', 'powerless', 'trapped', 'no choice', 'forced', 'couldn\'t stop', 'watched'],
+            description: 'The character felt powerless to change an outcome'
+        },
+        intimacy: {
+            keywords: ['kiss', 'touch', 'held', 'embrace', 'close', 'intimate', 'tender', 'gentle', 'love'],
+            description: 'The character experienced an intimate moment'
+        },
+        violence: {
+            keywords: ['blood', 'killed', 'murdered', 'violence', 'brutal', 'savage', 'slaughter', 'gore'],
+            description: 'The character witnessed or participated in violence'
+        },
+        revelation: {
+            keywords: ['truth', 'revealed', 'secret', 'discovered', 'realized', 'understood', 'finally knew'],
+            description: 'The character learned something significant'
+        },
+        victory: {
+            keywords: ['won', 'victory', 'triumph', 'succeeded', 'defeated', 'conquered', 'overcame'],
+            description: 'The character achieved a significant victory'
+        }
+    };
+
+    function detectEventCategories(messageContent) {
+        const lowerContent = messageContent.toLowerCase();
+        const detected = [];
+
+        for (const [category, data] of Object.entries(EVENT_CATEGORIES)) {
+            const matches = data.keywords.filter(kw => lowerContent.includes(kw));
+            if (matches.length >= 1) {
+                detected.push({
+                    category,
+                    description: data.description,
+                    matchedKeywords: matches,
+                    strength: matches.length
+                });
+            }
+        }
+
+        // Sort by match strength
+        return detected.sort((a, b) => b.strength - a.strength);
+    }
+
+    function gatherSpawnContext() {
+        const context = getSTContext();
+        if (!context) return null;
+
+        // Get persona description
+        let personaDescription = '';
+        if (context.name1) {
+            personaDescription = `Name: ${context.name1}\n`;
+        }
+        // Try to get persona description from various possible locations
+        if (context.persona) {
+            personaDescription += context.persona;
+        } else if (context.default_persona) {
+            personaDescription += context.default_persona;
+        }
+        // Also check for user persona in extensionSettings
+        if (extensionSettings.characterContext) {
+            personaDescription += '\n' + extensionSettings.characterContext;
+        }
+
+        // Get lorebook/world info if available
+        let lorebookEntries = [];
+        try {
+            // ST stores activated world info in various places
+            if (context.worldInfoBefore) {
+                lorebookEntries.push(context.worldInfoBefore);
+            }
+            if (context.worldInfoAfter) {
+                lorebookEntries.push(context.worldInfoAfter);
+            }
+            // Also check for character book
+            if (context.characterBook) {
+                lorebookEntries.push(...Object.values(context.characterBook));
+            }
+        } catch (e) {
+            log('Could not access lorebook:', e);
+        }
+
+        // Get recent messages for story context
+        const chat = context.chat || [];
+        const recentMessages = chat.slice(-6).map(msg => ({
+            role: msg.is_user ? 'user' : 'character',
+            name: msg.is_user ? context.name1 : context.name2,
+            content: msg.mes?.substring(0, 500) || '' // Truncate for context window
+        }));
+
+        // Get the user's last message (their reaction)
+        const userMessages = chat.filter(m => m.is_user);
+        const lastUserMessage = userMessages[userMessages.length - 1]?.mes || '';
+
+        return {
+            personaDescription,
+            lorebookEntries: lorebookEntries.filter(Boolean),
+            recentMessages,
+            lastUserMessage,
+            characterName: extensionSettings.characterName || context.name1 || 'the character'
+        };
+    }
+
+    async function analyzeForContextualSpawn(messageContent) {
+        if (!extensionSettings.autoSpawn) return null;
+
+        // 1. Detect what kind of event happened
+        const events = detectEventCategories(messageContent);
+        if (events.length === 0) return null;
+
+        // 2. Gather context
+        const spawnContext = gatherSpawnContext();
+        if (!spawnContext) return null;
+
+        // 3. Get current voices to help AI decide
+        const currentVoices = Object.values(getCurrentVoiceSet().voices).map(v => ({
+            id: v.id,
+            name: v.name,
+            description: v.description,
+            personality: v.personality?.substring(0, 100)
+        }));
+
+        // 4. Build the analysis prompt
+        const systemPrompt = `You are analyzing a roleplay scenario to determine if an internal voice should emerge in the character's psyche.
+
+Internal voices are manifestations of psychological responses to significant events - like the voices in "Slay the Princess" or "Disco Elysium". They represent how a character internalizes experiences.
+
+IMPORTANT: Not every event spawns a voice. Consider:
+- The character's personality and background
+- How they REACTED to the event (fight, flight, freeze, acceptance, denial?)
+- Whether this would leave a lasting psychological mark
+- A stoic character might process without spawning
+- A reactive character might spawn multiple voices over time
+
+Output ONLY valid JSON in this exact format:
+{
+    "shouldSpawn": true/false,
+    "reasoning": "Brief explanation of why this character would/wouldn't internalize this",
+    "useExisting": true/false,
+    "existingVoiceId": "id or null",
+    "existingVoiceMemory": "personalized memory for existing voice or null",
+    "createNew": true/false,
+    "newVoice": {
+        "name": "The [Name]",
+        "signature": "SIGNATURE",
+        "color": "#hexcolor",
+        "description": "One-line description",
+        "personality": "How this voice speaks and thinks, specific to this character's experience",
+        "spawnMemory": "What this voice remembers about the triggering event"
+    } or null
+}`;
+
+        const userPrompt = `CHARACTER PROFILE:
+${spawnContext.personaDescription || 'No specific persona defined.'}
+
+${spawnContext.lorebookEntries.length > 0 ? `RELEVANT BACKGROUND:\n${spawnContext.lorebookEntries.join('\n\n')}\n` : ''}
+
+RECENT STORY CONTEXT:
+${spawnContext.recentMessages.map(m => `${m.name}: ${m.content}`).join('\n\n')}
+
+TRIGGERING EVENT:
+${events.map(e => `- ${e.description} (keywords: ${e.matchedKeywords.join(', ')})`).join('\n')}
+
+CHARACTER'S REACTION (their last action/words):
+${spawnContext.lastUserMessage || 'No direct reaction captured.'}
+
+AVAILABLE VOICES IN CURRENT SET:
+${currentVoices.map(v => `- ${v.name} (${v.id}): ${v.description}`).join('\n')}
+
+Based on this character's personality and their reaction to this event, should a new internal voice emerge? If so, should it be one of the existing voices (given a personalized memory) or a completely new voice tailored to this specific character?`;
+
+        try {
+            const response = await callAPI(systemPrompt, userPrompt);
+            
+            // Parse JSON from response
+            let jsonStr = response;
+            const jsonMatch = response.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+                jsonStr = jsonMatch[0];
+            }
+            
+            const decision = JSON.parse(jsonStr);
+            return decision;
+        } catch (error) {
+            console.error('[Inner Chorus] Context analysis failed:', error);
+            return null;
+        }
+    }
+
+    async function processContextualSpawn(decision, messageContent) {
+        if (!decision || !decision.shouldSpawn) {
+            log('No contextual spawn:', decision?.reasoning || 'No decision');
+            return false;
+        }
+
+        if (decision.useExisting && decision.existingVoiceId) {
+            // Use an existing voice with personalized memory
+            const voice = getCurrentVoiceSet().voices[decision.existingVoiceId];
+            if (voice) {
+                awakenVoice(decision.existingVoiceId, decision.existingVoiceMemory);
+                showToast(`${voice.name} stirs... (contextual)`, 'voice', 3000);
+                return true;
+            }
+        }
+
+        if (decision.createNew && decision.newVoice) {
+            // Create a new voice from the decision
+            const newVoice = {
+                id: decision.newVoice.name.toLowerCase().replace(/^the\s+/, '').replace(/[^a-z0-9]+/g, '_') + '_' + Date.now(),
+                name: decision.newVoice.name,
+                signature: decision.newVoice.signature,
+                color: decision.newVoice.color || '#9932CC',
+                description: decision.newVoice.description,
+                personality: decision.newVoice.personality,
+                alwaysPresent: false,
+                cannotBeDisabled: false,
+                spawnCondition: null, // Contextually spawned, no keywords
+                spawnMemory: decision.newVoice.spawnMemory,
+                contextuallySpawned: true,
+                spawnedFrom: messageContent.substring(0, 100)
+            };
+
+            // Add to current set
+            const set = getCurrentVoiceSet();
+            set.voices[newVoice.id] = newVoice;
+            
+            // Awaken with memory
+            awakenVoice(newVoice.id, decision.newVoice.spawnMemory);
+            
+            saveState();
+            renderVoicesList();
+            showToast(`${newVoice.name} emerges...`, 'voice', 3000);
+            return true;
+        }
+
+        return false;
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -1317,11 +1581,21 @@ Guidelines:
                                 <input type="checkbox" id="ic-auto-spawn" checked />
                                 <span>Auto-spawn voices from events</span>
                             </label>
-                            <small class="ic-hint">New voices awaken based on deaths, trauma, and choices</small>
+                            <small class="ic-hint">Basic keyword matching for spawn conditions</small>
+                        </div>
+                        <div class="ic-form-group">
+                            <label class="ic-checkbox">
+                                <input type="checkbox" id="ic-contextual-spawn" checked />
+                                <span>Context-aware spawning (AI)</span>
+                            </label>
+                            <small class="ic-hint">Uses AI to analyze persona, lorebook, and story context to decide if/what voice should spawn. More nuanced but uses additional API calls.</small>
                         </div>
                     </div>
                     <div class="ic-section">
                         <div class="ic-section-header"><span>Character Context</span></div>
+                        <p class="ic-hint" style="margin-bottom: 10px;">
+                            This context is used for voice generation AND contextual spawning. The more detail you provide, the smarter spawning decisions will be.
+                        </p>
                         <div class="ic-form-group">
                             <label>POV Style</label>
                             <select id="ic-pov-style">
@@ -1335,8 +1609,8 @@ Guidelines:
                             <input type="text" id="ic-character-name" placeholder="For third-person references" />
                         </div>
                         <div class="ic-form-group">
-                            <label>Character Context</label>
-                            <textarea id="ic-character-context" rows="3" placeholder="Who is this character? What are they like?"></textarea>
+                            <label>Character Context / Persona</label>
+                            <textarea id="ic-character-context" rows="4" placeholder="Who is this character? What's their personality, background, how do they typically respond to stress? The more detail, the smarter contextual spawning will be."></textarea>
                         </div>
                     </div>
                     <button class="ic-btn ic-btn-primary" id="ic-save-settings">
@@ -1371,15 +1645,17 @@ Guidelines:
             const isAwake = activeVoices.has(voice.id);
             const memory = voiceMemories[voice.id];
             const canRemove = !voice.cannotBeDisabled; // Can remove if not required
+            const isContextual = voice.contextuallySpawned;
             
             return `
-                <div class="ic-voice-card ${isAwake ? 'ic-voice-awake' : 'ic-voice-dormant'}" 
+                <div class="ic-voice-card ${isAwake ? 'ic-voice-awake' : 'ic-voice-dormant'} ${isContextual ? 'ic-voice-contextual' : ''}" 
                      data-voice-id="${voice.id}"
                      style="--voice-color: ${voice.color}">
                     <div class="ic-voice-header">
                         <span class="ic-voice-name" style="color: ${voice.color}">${voice.name}</span>
                         <div class="ic-voice-status">
                             ${voice.alwaysPresent ? '<span class="ic-badge">Always</span>' : ''}
+                            ${isContextual ? '<span class="ic-badge ic-badge-contextual" title="Spawned from story context">AI</span>' : ''}
                             ${canRemove ? `<button class="ic-btn-icon ic-btn-remove" data-action="remove" title="Remove from set"><i class="fa-solid fa-xmark"></i></button>` : ''}
                             <span class="ic-status-dot ${isAwake ? 'ic-awake' : 'ic-dormant'}"></span>
                         </div>
@@ -1678,6 +1954,7 @@ Guidelines:
         setChecked('ic-auto-trigger', s.autoTrigger);
         setVal('ic-trigger-delay', s.triggerDelay);
         setChecked('ic-auto-spawn', s.autoSpawn);
+        setChecked('ic-contextual-spawn', s.contextualSpawn);
         setVal('ic-pov-style', s.povStyle);
         setVal('ic-character-name', s.characterName);
         setVal('ic-character-context', s.characterContext);
@@ -1698,6 +1975,7 @@ Guidelines:
         extensionSettings.autoTrigger = getChecked('ic-auto-trigger');
         extensionSettings.triggerDelay = getNum('ic-trigger-delay', 1500);
         extensionSettings.autoSpawn = getChecked('ic-auto-spawn');
+        extensionSettings.contextualSpawn = getChecked('ic-contextual-spawn');
         extensionSettings.povStyle = getVal('ic-pov-style');
         extensionSettings.characterName = getVal('ic-character-name');
         extensionSettings.characterContext = getVal('ic-character-context');
@@ -1780,11 +2058,27 @@ Guidelines:
         }
 
         try {
-            // Check for spawn events
+            // Check for basic keyword-based spawn events
             if (extensionSettings.autoSpawn) {
                 const spawned = detectSpawnEvents(messageContent);
                 if (spawned.length > 0) {
                     processSpawnEvents(spawned, messageContent);
+                }
+            }
+
+            // Context-aware spawning (AI analyzes persona + situation)
+            if (extensionSettings.contextualSpawn) {
+                try {
+                    log('Analyzing for contextual spawn...');
+                    const decision = await analyzeForContextualSpawn(messageContent);
+                    if (decision) {
+                        await processContextualSpawn(decision, messageContent);
+                        // Re-render voices list if something was added
+                        renderVoicesList();
+                    }
+                } catch (contextError) {
+                    log('Contextual spawn analysis failed:', contextError);
+                    // Continue with normal voice generation even if contextual spawn fails
                 }
             }
 

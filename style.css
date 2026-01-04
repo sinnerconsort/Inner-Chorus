@@ -956,3 +956,15 @@ input[type="color"]::-webkit-color-swatch {
 .ic-header-actions .ic-btn-sm:hover {
     opacity: 1;
 }
+
+
+/* Contextually spawned voices */
+.ic-voice-contextual {
+    border-left-color: #E6B0AA;
+}
+
+.ic-badge-contextual {
+    background: rgba(230, 176, 170, 0.2);
+    color: #E6B0AA;
+    font-size: 9px;
+}
