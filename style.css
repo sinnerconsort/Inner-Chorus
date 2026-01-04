@@ -968,3 +968,72 @@ input[type="color"]::-webkit-color-swatch {
     color: #E6B0AA;
     font-size: 9px;
 }
+
+
+/* ═══════════════════════════════════════════════════════════════
+   PERSONA GENERATION
+   ═══════════════════════════════════════════════════════════════ */
+
+.ic-persona-section {
+    background: linear-gradient(135deg, rgba(100, 149, 237, 0.1) 0%, rgba(30, 30, 46, 0.5) 100%);
+    border-color: rgba(100, 149, 237, 0.4);
+}
+
+.ic-persona-preview {
+    background: var(--ic-bg-dark);
+    border-radius: 8px;
+    padding: 12px;
+    min-height: 60px;
+}
+
+.ic-persona-info {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.ic-persona-name {
+    font-weight: 600;
+    font-size: 14px;
+    color: #6495ED;
+}
+
+.ic-persona-desc {
+    font-size: 11px;
+    color: var(--ic-text-secondary);
+    line-height: 1.5;
+    font-style: italic;
+}
+
+.ic-persona-meta {
+    display: flex;
+    gap: 8px;
+    margin-top: 4px;
+}
+
+.ic-persona-meta .ic-badge {
+    font-size: 9px;
+}
+
+.ic-btn-wide {
+    width: 100%;
+    padding: 12px;
+}
+
+/* Generated from persona badge */
+.ic-badge-persona {
+    background: rgba(100, 149, 237, 0.2);
+    color: #6495ED;
+    font-size: 9px;
+}
+
+.ic-voice-persona {
+    border-left-color: #6495ED;
+}
+
+/* Core voice styling */
+.ic-badge-core {
+    background: rgba(255, 215, 0, 0.2);
+    color: #FFD700;
+    font-size: 9px;
+}

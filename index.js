@@ -1222,6 +1222,252 @@ Guidelines:
     }
 
     // ═══════════════════════════════════════════════════════════════
+    // PERSONA-BASED VOICE GENERATION
+    // ═══════════════════════════════════════════════════════════════
+
+    function gatherPersonaInfo() {
+        const context = getSTContext();
+        if (!context) return null;
+
+        let personaName = '';
+        let personaDescription = '';
+        let lorebookEntries = [];
+
+        // Get persona name
+        if (context.name1) {
+            personaName = context.name1;
+        }
+
+        // Get persona description from various sources
+        if (context.persona) {
+            personaDescription = context.persona;
+        } else if (context.default_persona) {
+            personaDescription = context.default_persona;
+        }
+
+        // Also include character context from settings
+        if (extensionSettings.characterContext) {
+            personaDescription += '\n\n' + extensionSettings.characterContext;
+        }
+
+        // Try to get lorebook/world info
+        try {
+            if (context.worldInfoBefore) {
+                lorebookEntries.push({ type: 'world', content: context.worldInfoBefore });
+            }
+            if (context.worldInfoAfter) {
+                lorebookEntries.push({ type: 'world', content: context.worldInfoAfter });
+            }
+            // Character book entries
+            if (context.characterBook) {
+                const entries = Array.isArray(context.characterBook) 
+                    ? context.characterBook 
+                    : Object.values(context.characterBook);
+                entries.forEach(entry => {
+                    if (entry?.content || entry?.entry) {
+                        lorebookEntries.push({ 
+                            type: 'character', 
+                            content: entry.content || entry.entry,
+                            keys: entry.keys || entry.key || []
+                        });
+                    }
+                });
+            }
+        } catch (e) {
+            log('Could not access lorebook:', e);
+        }
+
+        return {
+            name: personaName,
+            description: personaDescription.trim(),
+            lorebook: lorebookEntries,
+            hasPersona: personaDescription.trim().length > 10,
+            hasLorebook: lorebookEntries.length > 0
+        };
+    }
+
+    function updatePersonaPreview() {
+        const preview = document.getElementById('ic-persona-preview');
+        if (!preview) return;
+
+        const info = gatherPersonaInfo();
+        
+        if (!info || !info.hasPersona) {
+            preview.innerHTML = `
+                <div class="ic-empty-state">
+                    <i class="fa-solid fa-user-slash"></i>
+                    <span>No persona detected</span>
+                    <small>Set a persona in SillyTavern or add Character Context in Settings</small>
+                </div>
+            `;
+            return;
+        }
+
+        const descPreview = info.description.length > 200 
+            ? info.description.substring(0, 200) + '...' 
+            : info.description;
+
+        preview.innerHTML = `
+            <div class="ic-persona-info">
+                <div class="ic-persona-name">${info.name || 'Unnamed Persona'}</div>
+                <div class="ic-persona-desc">${descPreview}</div>
+                <div class="ic-persona-meta">
+                    ${info.hasLorebook ? `<span class="ic-badge"><i class="fa-solid fa-book"></i> ${info.lorebook.length} lorebook entries</span>` : ''}
+                    <span class="ic-badge"><i class="fa-solid fa-text-width"></i> ${info.description.length} chars</span>
+                </div>
+            </div>
+        `;
+    }
+
+    async function generateVoicesFromPersona(voiceCount, startState, clearFirst) {
+        const info = gatherPersonaInfo();
+        
+        if (!info || !info.hasPersona) {
+            throw new Error('No persona information found. Set a persona in SillyTavern or add Character Context in Settings.');
+        }
+
+        // Build lorebook context string
+        let lorebookContext = '';
+        if (info.lorebook.length > 0) {
+            lorebookContext = '\n\nLOREBOOK/BACKGROUND ENTRIES:\n' + 
+                info.lorebook.map(entry => entry.content).join('\n\n');
+        }
+
+        const systemPrompt = `You are a psychological voice designer for a narrative system inspired by Slay the Princess and Disco Elysium.
+
+Given a character's persona description and background, create ${voiceCount} internal voices that represent different aspects of their psychology - voices that already exist within them based on who they are, not from events that haven't happened yet.
+
+These should be:
+- INHERENT voices based on personality traits, background, psychology
+- Voices that represent internal conflicts, desires, fears, drives
+- Unique to THIS character - not generic archetypes
+- One should usually be a NARRATOR voice (observational, poetic)
+
+Output ONLY valid JSON array:
+[
+    {
+        "name": "The [Name]",
+        "signature": "[ALLCAPS]",
+        "color": "#hexcolor",
+        "description": "One-line poetic description",
+        "personality": "2-4 sentences describing how this voice speaks, what it believes, what it wants. Written as instructions: 'You are THE X - ...'",
+        "isCore": true/false,
+        "alwaysPresent": true/false
+    }
+]
+
+Guidelines:
+- Names should be "The [Concept]" format
+- Colors should be evocative of the voice's nature
+- isCore = true for 2-3 central voices that define the character
+- alwaysPresent = true only for the Narrator voice
+- Make voices SPECIFIC to this character's psychology, not generic
+- Consider: What internal debates does this person have? What parts of themselves do they struggle with?`;
+
+        const userPrompt = `Create ${voiceCount} internal voices for this character:
+
+CHARACTER NAME: ${info.name || 'Unknown'}
+
+PERSONA DESCRIPTION:
+${info.description}
+${lorebookContext}
+
+Based on this character's personality, background, fears, desires, and psychology, what internal voices would naturally exist within their mind? What aspects of themselves do they embody, struggle with, or suppress?`;
+
+        try {
+            const response = await callAPI(systemPrompt, userPrompt);
+            
+            // Parse JSON array from response
+            let jsonStr = response;
+            const jsonMatch = response.match(/\[[\s\S]*\]/);
+            if (jsonMatch) {
+                jsonStr = jsonMatch[0];
+            }
+            
+            const voices = JSON.parse(jsonStr);
+            
+            if (!Array.isArray(voices) || voices.length === 0) {
+                throw new Error('Invalid response format');
+            }
+
+            // Process the generated voices
+            return processGeneratedVoiceSet(voices, startState, clearFirst);
+        } catch (error) {
+            console.error('[Inner Chorus] Persona voice generation failed:', error);
+            throw error;
+        }
+    }
+
+    function processGeneratedVoiceSet(generatedVoices, startState, clearFirst) {
+        const set = getCurrentVoiceSet();
+        const results = { added: [], activated: [] };
+
+        // Clear existing voices if requested (except narrator if it exists)
+        if (clearFirst) {
+            const voiceIds = Object.keys(set.voices);
+            voiceIds.forEach(id => {
+                if (id !== 'narrator' || !set.voices[id]?.cannotBeDisabled) {
+                    delete set.voices[id];
+                    activeVoices.delete(id);
+                    delete voiceMemories[id];
+                }
+            });
+        }
+
+        // Add each generated voice
+        generatedVoices.forEach((voice, index) => {
+            const id = voice.name.toLowerCase()
+                .replace(/^the\s+/, '')
+                .replace(/[^a-z0-9]+/g, '_') + '_' + Date.now() + '_' + index;
+
+            const newVoice = {
+                id,
+                name: voice.name,
+                signature: voice.signature || voice.name.replace(/^The\s+/i, '').toUpperCase(),
+                color: voice.color || '#9932CC',
+                description: voice.description,
+                personality: voice.personality,
+                alwaysPresent: voice.alwaysPresent || false,
+                cannotBeDisabled: voice.alwaysPresent || false,
+                isCore: voice.isCore || false,
+                generatedFromPersona: true,
+                spawnCondition: null,
+                spawnMemory: null
+            };
+
+            set.voices[id] = newVoice;
+            results.added.push(newVoice);
+
+            // Determine if this voice should be active based on startState
+            let shouldActivate = false;
+            switch (startState) {
+                case 'all':
+                    shouldActivate = true;
+                    break;
+                case 'core':
+                    shouldActivate = newVoice.isCore || newVoice.alwaysPresent;
+                    break;
+                case 'narrator':
+                    shouldActivate = newVoice.alwaysPresent || 
+                        newVoice.name.toLowerCase().includes('narrator');
+                    break;
+                case 'dormant':
+                default:
+                    shouldActivate = newVoice.alwaysPresent;
+                    break;
+            }
+
+            if (shouldActivate) {
+                activeVoices.add(id);
+                results.activated.push(newVoice);
+            }
+        });
+
+        saveState();
+        return results;
+    }
+
+    // ═══════════════════════════════════════════════════════════════
     // TOAST NOTIFICATIONS
     // ═══════════════════════════════════════════════════════════════
 
@@ -1375,10 +1621,59 @@ Guidelines:
 
                 <!-- CREATE TAB -->
                 <div class="ic-tab-content" data-tab-content="create">
+                    <!-- Persona Bootstrap Section -->
+                    <div class="ic-section ic-persona-section">
+                        <div class="ic-section-header">
+                            <span><i class="fa-solid fa-user-astronaut"></i> Generate from Persona</span>
+                        </div>
+                        <p class="ic-hint" style="margin-bottom: 10px;">
+                            Scan your persona description and lorebook to create a custom voice set tailored to your character's personality, background, and psychology.
+                        </p>
+                        <div class="ic-persona-preview" id="ic-persona-preview">
+                            <div class="ic-empty-state">
+                                <i class="fa-solid fa-user-slash"></i>
+                                <span>No persona detected</span>
+                            </div>
+                        </div>
+                        <div class="ic-form-row" style="margin-top: 10px;">
+                            <div class="ic-form-group" style="flex: 1">
+                                <label>Voices to Generate</label>
+                                <select id="ic-persona-voice-count">
+                                    <option value="3">3 voices (quick)</option>
+                                    <option value="5" selected>5 voices (balanced)</option>
+                                    <option value="7">7 voices (comprehensive)</option>
+                                </select>
+                            </div>
+                            <div class="ic-form-group" style="flex: 1">
+                                <label>Start State</label>
+                                <select id="ic-persona-start-state">
+                                    <option value="dormant">All dormant (awaken organically)</option>
+                                    <option value="narrator">Narrator only active</option>
+                                    <option value="core">Core voices active</option>
+                                    <option value="all">All voices active</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="ic-form-group">
+                            <label class="ic-checkbox">
+                                <input type="checkbox" id="ic-persona-clear-first" checked />
+                                <span>Clear existing voices first (start fresh)</span>
+                            </label>
+                        </div>
+                        <button class="ic-btn ic-btn-primary ic-btn-wide" id="ic-generate-from-persona">
+                            <i class="fa-solid fa-wand-magic-sparkles"></i>
+                            <span>Generate Voice Set from Persona</span>
+                        </button>
+                    </div>
+
+                    <div class="ic-divider">
+                        <span>or create individual voices</span>
+                    </div>
+
                     <!-- Generator Section -->
                     <div class="ic-section ic-generator-section">
                         <div class="ic-section-header">
-                            <span><i class="fa-solid fa-wand-magic-sparkles"></i> Voice Generator</span>
+                            <span><i class="fa-solid fa-ghost"></i> Single Voice Generator</span>
                         </div>
                         <div class="ic-form-group">
                             <label>Describe Your Voice</label>
@@ -1626,6 +1921,7 @@ Guidelines:
         populateSettings();
         renderVoicesList();
         renderProfilesList();
+        updatePersonaPreview();
         applyFabPosition();
         makeFabDraggable();
     }
@@ -1646,16 +1942,25 @@ Guidelines:
             const memory = voiceMemories[voice.id];
             const canRemove = !voice.cannotBeDisabled; // Can remove if not required
             const isContextual = voice.contextuallySpawned;
+            const isPersona = voice.generatedFromPersona;
+            const isCore = voice.isCore;
+            
+            // Determine card styling class
+            let cardClass = isAwake ? 'ic-voice-awake' : 'ic-voice-dormant';
+            if (isContextual) cardClass += ' ic-voice-contextual';
+            if (isPersona) cardClass += ' ic-voice-persona';
             
             return `
-                <div class="ic-voice-card ${isAwake ? 'ic-voice-awake' : 'ic-voice-dormant'} ${isContextual ? 'ic-voice-contextual' : ''}" 
+                <div class="ic-voice-card ${cardClass}" 
                      data-voice-id="${voice.id}"
                      style="--voice-color: ${voice.color}">
                     <div class="ic-voice-header">
                         <span class="ic-voice-name" style="color: ${voice.color}">${voice.name}</span>
                         <div class="ic-voice-status">
                             ${voice.alwaysPresent ? '<span class="ic-badge">Always</span>' : ''}
-                            ${isContextual ? '<span class="ic-badge ic-badge-contextual" title="Spawned from story context">AI</span>' : ''}
+                            ${isCore ? '<span class="ic-badge ic-badge-core" title="Core personality voice">Core</span>' : ''}
+                            ${isPersona && !isContextual ? '<span class="ic-badge ic-badge-persona" title="Generated from persona">Persona</span>' : ''}
+                            ${isContextual ? '<span class="ic-badge ic-badge-contextual" title="Spawned from story context">Story</span>' : ''}
                             ${canRemove ? `<button class="ic-btn-icon ic-btn-remove" data-action="remove" title="Remove from set"><i class="fa-solid fa-xmark"></i></button>` : ''}
                             <span class="ic-status-dot ${isAwake ? 'ic-awake' : 'ic-dormant'}"></span>
                         </div>
@@ -2206,6 +2511,45 @@ Guidelines:
         document.getElementById('ic-save-settings')?.addEventListener('click', saveSettings);
 
         // ═══ VOICE CREATOR EVENTS ═══
+
+        // Generate voice set from persona
+        document.getElementById('ic-generate-from-persona')?.addEventListener('click', async () => {
+            const voiceCount = parseInt(document.getElementById('ic-persona-voice-count')?.value || '5');
+            const startState = document.getElementById('ic-persona-start-state')?.value || 'dormant';
+            const clearFirst = document.getElementById('ic-persona-clear-first')?.checked !== false;
+
+            const btn = document.getElementById('ic-generate-from-persona');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i><span>Analyzing persona...</span>';
+            
+            const loadingToast = showToast('Scanning persona and creating voices...', 'loading');
+
+            try {
+                const results = await generateVoicesFromPersona(voiceCount, startState, clearFirst);
+                hideToast(loadingToast);
+                
+                renderVoicesList();
+                
+                // Switch to voices tab to show results
+                document.querySelectorAll('.ic-tab').forEach(t => t.classList.remove('ic-tab-active'));
+                document.querySelectorAll('.ic-tab-content').forEach(c => c.classList.remove('ic-tab-content-active'));
+                document.querySelector('[data-tab="voices"]')?.classList.add('ic-tab-active');
+                document.querySelector('[data-tab-content="voices"]')?.classList.add('ic-tab-content-active');
+
+                showToast(`Created ${results.added.length} voices! ${results.activated.length} active.`, 'success', 4000);
+            } catch (error) {
+                hideToast(loadingToast);
+                showToast(error.message || 'Generation failed', 'error', 4000);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i><span>Generate Voice Set from Persona</span>';
+            }
+        });
+
+        // Update persona preview when switching to Create tab
+        document.querySelector('[data-tab="create"]')?.addEventListener('click', () => {
+            setTimeout(updatePersonaPreview, 100);
+        });
         
         // Generate voice from prompt
         document.getElementById('ic-generate-voice')?.addEventListener('click', async () => {

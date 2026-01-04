@@ -1,114 +1,112 @@
 # Inner Chorus 🎭
 
-A SillyTavern extension that creates **dynamic inner voices** inspired by *Slay the Princess*. Unlike fixed personality systems, voices in Inner Chorus **emerge from your choices, deaths, and traumas** - and stick around to argue with each other forever.
+**Dynamic inner voices for SillyTavern** - inspired by *Slay the Princess* and *Disco Elysium*.
 
-## ✨ Core Concept
+Your character's psyche becomes a chorus of voices that comment, argue, and evolve based on what happens in the story.
 
-In *Slay the Princess*, you start with just the **Narrator** and the **Hero**. But as you make choices - as you die in different ways, act on different impulses - new voices awaken. Each voice remembers *why* it exists and colors all future decisions with that memory.
+## ✨ Features
 
-**Inner Chorus brings this system to roleplay:**
-- Voices awaken based on what happens in your story
-- Each voice has a personality, a bias, and a *memory* of its origin
-- They argue with each other, building on and contradicting each other's advice
-- Your psyche becomes a living record of your journey
+### 🎭 Voice System
+- **Dynamic voices** that respond to story events
+- **Narrator** provides poetic scene-setting
+- **Personality voices** argue and debate about choices
+- Voices can be **awakened/silenced** on demand
+- Full **customization** of voice personalities
 
-## 🎭 Default Voice Set: Slay the Princess
+### 🧠 Generate from Persona
+- Scan your **persona description** and **lorebook**
+- AI creates a **custom voice set** tailored to your character's psychology
+- Choose how many voices (3/5/7)
+- Choose starting state (all dormant, narrator only, core voices, all active)
+- Start fresh or add to existing voices
 
-| Voice | Always Present | Spawns From | Personality |
-|-------|---------------|-------------|-------------|
-| **The Narrator** | ✓ | - | Objective framing, subtle guidance |
-| **The Hero** | ✓ | - | Conscience, heroism, doing what's right |
-| **The Broken** | | Pathetic death | Despair, submission, "why struggle?" |
-| **The Cheated** | | Stolen victory | Bitter resentment, pessimism |
-| **The Cold** | | Heartless choice | Emotional detachment, pragmatism |
-| **The Contrarian** | | Nonsensical choice | Chaos, doing the unexpected |
-| **The Hunted** | | Fear-driven death | Survival instinct, hypervigilance |
-| **The Opportunist** | | Taking advantage | Calculating, always seeing angles |
-| **The Paranoid** | | Cowardly choice | Deep suspicion, seeing traps |
-| **The Skeptic** | | Radical doubt | Questioning everything, demanding proof |
-| **The Smitten** | | Acting on feelings | Love, devotion, following the heart |
-| **The Stubborn** | | Fighting to the end | Refusal to yield, defiance |
+### 🔮 Context-Aware Spawning
+- AI analyzes **who your character is** and **how they react**
+- Same event → different characters → different (or no) voices
+- Considers persona, lorebook, recent story, and user's reaction
+- Can create **brand new voices** tailored to specific moments
 
-## 🌟 Features
+### 📚 Voice Management
+- **Remove** individual voices from your set
+- **Voice Library** to add back removed default voices
+- **Clear All** to start with empty template
+- **Reset** to restore defaults
 
-### Dynamic Voice Spawning
-- **Auto-Detection**: The system reads narrative for death, trauma, and major choice keywords
-- **Contextual Memory**: Each awakened voice remembers what spawned it
-- **Toast Notifications**: *"The Broken has awakened..."* when a new voice emerges
+### 👤 Persona Profiles
+- Save your entire voice configuration per character
+- Load profiles to restore voices, memories, and settings
+- Update profiles as your character evolves
 
-### Reactive Chorus
-- One API call generates all voices interacting together
-- Voices argue, agree, interrupt, and reference each other
-- The Narrator frames; others react with their biases
-
-### Voice Management
-- See all voices (awake and dormant)
-- Manually awaken or silence voices
-- View each voice's origin memory
-
-### Future Features (Planned)
-- Custom voice sets
-- Per-character/persona voice profiles
-- Voice creation wizard
-- Lorebook integration for voice spawning
+### ✨ Voice Creator
+- **Generate from description**: "A paranoid voice born from betrayal..."
+- **Manual editor** for full control
+- **Preview** before saving
 
 ## Installation
 
-1. Open SillyTavern
-2. Go to **Extensions** → **Install Extension**
-3. Paste the GitHub URL or install from zip
-4. Enable "Inner Chorus" in the extensions list
+1. Download the latest release
+2. Extract to `SillyTavern/data/default-user/extensions/inner-chorus/`
+3. Enable in Extensions menu
+4. Configure API settings (requires separate LLM endpoint)
 
-## Setup
+## Configuration
 
-1. Click the **💬 chat bubble** FAB to open the panel
-2. Go to **Settings** tab
-3. Configure your API (OpenAI-compatible endpoint)
-4. Adjust voice counts and behavior
-5. **Save Settings**
+### API Settings
+- **Endpoint**: Your LLM API endpoint (OpenAI-compatible)
+- **API Key**: Your API key
+- **Model**: Model to use for voice generation
 
-## How Voices Spawn
+### Trigger Settings
+- **Auto-trigger**: Automatically generate chorus after AI messages
+- **Trigger Delay**: Wait time for streaming to complete (default 1500ms)
+- **Auto-spawn**: Basic keyword-based voice spawning
+- **Context-aware spawning**: AI analyzes persona + context for smart spawning
 
-When a message contains multiple keywords matching a voice's spawn condition, that voice awakens. For example:
+### Character Context
+- **POV Style**: Second/third/first person
+- **Character Name**: For third-person references
+- **Character Context**: Who is this character? (Enhances contextual spawning)
 
-**The Broken** awakens when the narrative contains words like:
-- "pathetic", "gave up", "surrender", "collapsed", "helpless"
+## Voice Badges
 
-**The Smitten** awakens when you see:
-- "love", "devoted", "feelings", "heart", "romance"
+| Badge | Meaning |
+|-------|---------|
+| **Always** | Voice is always present (like Narrator) |
+| **Core** | Central personality voice (from persona generation) |
+| **Persona** | Generated from persona analysis |
+| **Story** | Spawned from story events |
 
-You need **2+ keyword matches** for a voice to spawn automatically.
+## Workflow Tips
 
-## Voice Memory
+1. **Start Fresh**: Use "Generate from Persona" for a custom voice set
+2. **Organic Growth**: Set voices to dormant, let them awaken naturally  
+3. **Save Profiles**: Save your setup before major story events
+4. **Character Context**: More detail = smarter contextual spawning
 
-Each voice remembers why it exists:
+## Default Voice Set
 
-> **The Cheated**: *"I had it. I HAD it. And it was ripped away. Never again. Never trust that things will work out."*
-
-> **The Stubborn**: *"I remember refusing to give up. I died fighting. That's the only death worth having."*
-
-These memories color how the voice reacts to everything that follows.
-
-## Tips
-
-- **Start simple**: Begin with just Narrator and Hero, let others emerge naturally
-- **Manual awakening**: If you want a specific voice, you can manually awaken it
-- **Silence when needed**: If a voice becomes annoying, silence it (except Narrator)
-- **Higher max tokens**: Voices interacting need room - try 600-800 tokens
-
-## Roadmap
-
-- [ ] Voice Set editor (create your own voice systems)
-- [ ] Per-persona voice profiles
-- [ ] Lorebook-triggered spawning
-- [ ] Voice relationship tracking
-- [ ] Import/export voice sets
+| Voice | Spawns From |
+|-------|-------------|
+| The Narrator | Always present |
+| The Hero | Always present |
+| The Broken | Pathetic death, despair |
+| The Cheated | Stolen victory |
+| The Cold | Heartless choice |
+| The Contrarian | Nonsensical choice |
+| The Hunted | Fear-driven death |
+| The Opportunist | Taking advantage |
+| The Paranoid | Cowardly choice |
+| The Skeptic | Radical doubt |
+| The Smitten | Acting on feelings |
+| The Stubborn | Fighting to the end |
 
 ## Credits
 
-- Inspired by **Slay the Princess** by Black Tabby Games
-- Built for **SillyTavern**
-- Extension by **Judas**
+Inspired by:
+- **Slay the Princess** - The voice system and emergence mechanic
+- **Disco Elysium** - Skills as internal voices with personalities
+
+Created by Judas for SillyTavern.
 
 ---
 
