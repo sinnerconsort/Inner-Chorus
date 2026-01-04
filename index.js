@@ -664,6 +664,176 @@ Generate the inner chorus reacting to this moment. Let the voices interact natur
     }
 
     // ═══════════════════════════════════════════════════════════════
+    // VOICE CREATOR
+    // ═══════════════════════════════════════════════════════════════
+
+    async function generateVoiceFromPrompt(prompt) {
+        const systemPrompt = `You are a voice designer for a narrative system inspired by Slay the Princess. 
+Given a description, create a complete voice profile.
+
+Output ONLY valid JSON in this exact format:
+{
+    "name": "The [Name]",
+    "signature": "[ALLCAPS]",
+    "color": "#hexcolor",
+    "description": "One-line poetic description",
+    "personality": "2-4 sentences describing how this voice speaks, what it believes, what it wants. Written as instructions to the voice itself: 'You are THE X - ...'",
+    "spawnType": "event|death|choice",
+    "keywords": ["keyword1", "keyword2", "keyword3", "keyword4", "keyword5"],
+    "spawnMemory": "1-2 sentences the voice 'remembers' about why it exists, written in first person"
+}
+
+Guidelines:
+- Names should be "The [Concept]" format (The Hollow, The Betrayed, The Ravenous)
+- Signature is the name in ALLCAPS without "The" (HOLLOW, BETRAYED, RAVENOUS)
+- Colors should be evocative (deep red for anger, sickly green for envy, etc.)
+- Personality should give the voice a distinct way of speaking and thinking
+- Keywords should be words that might appear in narrative when this voice should awaken
+- Spawn memory should be visceral and personal`;
+
+        const userPrompt = `Create a voice based on this concept: "${prompt}"`;
+
+        try {
+            const response = await callAPI(systemPrompt, userPrompt);
+            
+            // Try to extract JSON from response
+            let jsonStr = response;
+            const jsonMatch = response.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+                jsonStr = jsonMatch[0];
+            }
+            
+            const voiceData = JSON.parse(jsonStr);
+            return voiceData;
+        } catch (error) {
+            console.error('[Inner Chorus] Voice generation failed:', error);
+            throw new Error('Failed to generate voice. Check API settings.');
+        }
+    }
+
+    function populateEditorFromGenerated(voiceData) {
+        document.getElementById('ic-edit-name').value = voiceData.name || '';
+        document.getElementById('ic-edit-signature').value = voiceData.signature || '';
+        document.getElementById('ic-edit-color').value = voiceData.color || '#9932CC';
+        document.getElementById('ic-edit-desc').value = voiceData.description || '';
+        document.getElementById('ic-edit-personality').value = voiceData.personality || '';
+        document.getElementById('ic-edit-always').value = 'false';
+        document.getElementById('ic-edit-spawn-type').value = voiceData.spawnType || 'event';
+        document.getElementById('ic-edit-keywords').value = (voiceData.keywords || []).join(', ');
+        document.getElementById('ic-edit-memory').value = voiceData.spawnMemory || '';
+        
+        // Show spawn section
+        document.getElementById('ic-spawn-section').style.display = 'block';
+    }
+
+    function getEditorVoiceData() {
+        const name = document.getElementById('ic-edit-name').value.trim();
+        const signature = document.getElementById('ic-edit-signature').value.trim().toUpperCase() || name.replace(/^The\s+/i, '').toUpperCase();
+        const color = document.getElementById('ic-edit-color').value;
+        const description = document.getElementById('ic-edit-desc').value.trim();
+        const personality = document.getElementById('ic-edit-personality').value.trim();
+        const alwaysPresent = document.getElementById('ic-edit-always').value === 'true';
+        const spawnType = document.getElementById('ic-edit-spawn-type').value;
+        const keywordsRaw = document.getElementById('ic-edit-keywords').value;
+        const keywords = keywordsRaw.split(',').map(k => k.trim()).filter(k => k);
+        const spawnMemory = document.getElementById('ic-edit-memory').value.trim();
+
+        // Generate a safe ID
+        const id = name.toLowerCase().replace(/^the\s+/, '').replace(/[^a-z0-9]+/g, '_');
+
+        return {
+            id,
+            name,
+            signature,
+            color,
+            description,
+            personality,
+            alwaysPresent,
+            cannotBeDisabled: false,
+            spawnCondition: alwaysPresent ? null : {
+                type: spawnType,
+                keywords,
+                description: description
+            },
+            spawnMemory: alwaysPresent ? null : spawnMemory
+        };
+    }
+
+    function validateVoiceData(voice) {
+        const errors = [];
+        if (!voice.name) errors.push('Name is required');
+        if (!voice.personality) errors.push('Personality is required');
+        if (!voice.alwaysPresent && (!voice.spawnCondition?.keywords?.length)) {
+            errors.push('Spawn keywords are required for non-permanent voices');
+        }
+        return errors;
+    }
+
+    function saveVoiceToSet(voice) {
+        const set = getCurrentVoiceSet();
+        
+        // Check for duplicate ID
+        if (set.voices[voice.id]) {
+            // Generate unique ID
+            let counter = 2;
+            let newId = voice.id;
+            while (set.voices[newId]) {
+                newId = `${voice.id}_${counter}`;
+                counter++;
+            }
+            voice.id = newId;
+        }
+
+        set.voices[voice.id] = voice;
+        saveState();
+        return voice.id;
+    }
+
+    function previewVoice(voice) {
+        const previewSection = document.getElementById('ic-preview-section');
+        const previewContent = document.getElementById('ic-voice-preview');
+        
+        if (!previewSection || !previewContent) return;
+
+        const spawnInfo = voice.alwaysPresent 
+            ? '<span class="ic-badge">Always Present</span>'
+            : `<div class="ic-preview-spawn">
+                <strong>Spawns from:</strong> ${voice.spawnCondition?.type || 'event'}<br>
+                <strong>Keywords:</strong> ${voice.spawnCondition?.keywords?.join(', ') || 'none'}<br>
+                <strong>Memory:</strong> <em>"${voice.spawnMemory || '...'}"</em>
+               </div>`;
+
+        previewContent.innerHTML = `
+            <div class="ic-voice-card ic-voice-awake" style="--voice-color: ${voice.color}">
+                <div class="ic-voice-header">
+                    <span class="ic-voice-name" style="color: ${voice.color}">${voice.name}</span>
+                    <span class="ic-badge">${voice.signature}</span>
+                </div>
+                <div class="ic-voice-desc">${voice.description || 'No description'}</div>
+                <div class="ic-voice-personality"><em>${voice.personality?.substring(0, 150) || 'No personality defined'}...</em></div>
+                ${spawnInfo}
+            </div>
+        `;
+        
+        previewSection.style.display = 'block';
+    }
+
+    function clearEditor() {
+        document.getElementById('ic-edit-name').value = '';
+        document.getElementById('ic-edit-signature').value = '';
+        document.getElementById('ic-edit-color').value = '#9932CC';
+        document.getElementById('ic-edit-desc').value = '';
+        document.getElementById('ic-edit-personality').value = '';
+        document.getElementById('ic-edit-always').value = 'false';
+        document.getElementById('ic-edit-spawn-type').value = 'event';
+        document.getElementById('ic-edit-keywords').value = '';
+        document.getElementById('ic-edit-memory').value = '';
+        document.getElementById('ic-gen-prompt').value = '';
+        document.getElementById('ic-preview-section').style.display = 'none';
+        document.getElementById('ic-spawn-section').style.display = 'block';
+    }
+
+    // ═══════════════════════════════════════════════════════════════
     // TOAST NOTIFICATIONS
     // ═══════════════════════════════════════════════════════════════
 
@@ -749,6 +919,10 @@ Generate the inner chorus reacting to this moment. Let the voices interact natur
                     <i class="fa-solid fa-clock-rotate-left"></i>
                     <span>History</span>
                 </button>
+                <button class="ic-tab" data-tab="create">
+                    <i class="fa-solid fa-wand-magic-sparkles"></i>
+                    <span>Create</span>
+                </button>
                 <button class="ic-tab" data-tab="settings">
                     <i class="fa-solid fa-gear"></i>
                     <span>Settings</span>
@@ -796,6 +970,114 @@ Generate the inner chorus reacting to this moment. Let the voices interact natur
                                 <span>No history yet...</span>
                             </div>
                         </div>
+                    </div>
+                </div>
+
+                <!-- CREATE TAB -->
+                <div class="ic-tab-content" data-tab-content="create">
+                    <!-- Generator Section -->
+                    <div class="ic-section ic-generator-section">
+                        <div class="ic-section-header">
+                            <span><i class="fa-solid fa-wand-magic-sparkles"></i> Voice Generator</span>
+                        </div>
+                        <div class="ic-form-group">
+                            <label>Describe Your Voice</label>
+                            <textarea id="ic-gen-prompt" rows="3" placeholder="A paranoid voice born from being betrayed by someone trusted, always seeing hidden agendas..."></textarea>
+                            <small class="ic-hint">Describe the concept, origin, or personality. The AI will flesh it out.</small>
+                        </div>
+                        <button class="ic-btn ic-btn-primary" id="ic-generate-voice">
+                            <i class="fa-solid fa-sparkles"></i>
+                            <span>Generate Voice</span>
+                        </button>
+                    </div>
+
+                    <div class="ic-divider">
+                        <span>or edit manually</span>
+                    </div>
+
+                    <!-- Manual Editor Section -->
+                    <div class="ic-section ic-editor-section">
+                        <div class="ic-section-header">
+                            <span><i class="fa-solid fa-pen"></i> Voice Editor</span>
+                            <button class="ic-btn ic-btn-sm" id="ic-clear-editor" title="Clear form">
+                                <i class="fa-solid fa-eraser"></i>
+                            </button>
+                        </div>
+                        
+                        <div class="ic-form-row">
+                            <div class="ic-form-group" style="flex: 2">
+                                <label>Voice Name</label>
+                                <input type="text" id="ic-edit-name" placeholder="The Betrayed" />
+                            </div>
+                            <div class="ic-form-group" style="flex: 1">
+                                <label>Signature</label>
+                                <input type="text" id="ic-edit-signature" placeholder="BETRAYED" />
+                            </div>
+                        </div>
+
+                        <div class="ic-form-row">
+                            <div class="ic-form-group" style="flex: 1">
+                                <label>Color</label>
+                                <input type="color" id="ic-edit-color" value="#9932CC" />
+                            </div>
+                            <div class="ic-form-group" style="flex: 2">
+                                <label>Always Present?</label>
+                                <select id="ic-edit-always">
+                                    <option value="false">No - Spawns from events</option>
+                                    <option value="true">Yes - Always active</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="ic-form-group">
+                            <label>Short Description</label>
+                            <input type="text" id="ic-edit-desc" placeholder="Trust is a wound that never heals." />
+                        </div>
+
+                        <div class="ic-form-group">
+                            <label>Personality <small>(How the voice speaks and thinks)</small></label>
+                            <textarea id="ic-edit-personality" rows="4" placeholder="You are THE BETRAYED - born from the knife in the back you never saw coming..."></textarea>
+                        </div>
+
+                        <div class="ic-spawn-section" id="ic-spawn-section">
+                            <div class="ic-form-group">
+                                <label>Spawn Type</label>
+                                <select id="ic-edit-spawn-type">
+                                    <option value="event">Event (something happens)</option>
+                                    <option value="death">Death (character dies)</option>
+                                    <option value="choice">Choice (character decides)</option>
+                                </select>
+                            </div>
+
+                            <div class="ic-form-group">
+                                <label>Spawn Keywords <small>(comma-separated)</small></label>
+                                <input type="text" id="ic-edit-keywords" placeholder="betrayed, stabbed in back, trusted, lied to" />
+                            </div>
+
+                            <div class="ic-form-group">
+                                <label>Spawn Memory <small>(What the voice remembers)</small></label>
+                                <textarea id="ic-edit-memory" rows="2" placeholder="I remember the smile on their face, right before they twisted the knife..."></textarea>
+                            </div>
+                        </div>
+
+                        <div class="ic-form-actions">
+                            <button class="ic-btn" id="ic-preview-voice">
+                                <i class="fa-solid fa-eye"></i>
+                                <span>Preview</span>
+                            </button>
+                            <button class="ic-btn ic-btn-primary" id="ic-save-voice">
+                                <i class="fa-solid fa-save"></i>
+                                <span>Save Voice</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Preview Section -->
+                    <div class="ic-section ic-preview-section" id="ic-preview-section" style="display: none;">
+                        <div class="ic-section-header">
+                            <span><i class="fa-solid fa-eye"></i> Preview</span>
+                        </div>
+                        <div class="ic-voice-preview" id="ic-voice-preview"></div>
                     </div>
                 </div>
 
@@ -1170,6 +1452,89 @@ Generate the inner chorus reacting to this moment. Let the voices interact natur
 
         // Save settings
         document.getElementById('ic-save-settings')?.addEventListener('click', saveSettings);
+
+        // ═══ VOICE CREATOR EVENTS ═══
+        
+        // Generate voice from prompt
+        document.getElementById('ic-generate-voice')?.addEventListener('click', async () => {
+            const prompt = document.getElementById('ic-gen-prompt')?.value?.trim();
+            if (!prompt) {
+                showToast('Enter a description first!', 'error', 2000);
+                return;
+            }
+
+            const btn = document.getElementById('ic-generate-voice');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i><span>Generating...</span>';
+            
+            const loadingToast = showToast('Conjuring a new voice...', 'loading');
+
+            try {
+                const voiceData = await generateVoiceFromPrompt(prompt);
+                populateEditorFromGenerated(voiceData);
+                hideToast(loadingToast);
+                showToast('Voice generated! Review and save below.', 'success', 3000);
+            } catch (error) {
+                hideToast(loadingToast);
+                showToast(error.message || 'Generation failed', 'error', 3000);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-sparkles"></i><span>Generate Voice</span>';
+            }
+        });
+
+        // Preview voice
+        document.getElementById('ic-preview-voice')?.addEventListener('click', () => {
+            const voice = getEditorVoiceData();
+            const errors = validateVoiceData(voice);
+            
+            if (errors.length > 0) {
+                showToast(errors[0], 'error', 3000);
+                return;
+            }
+            
+            previewVoice(voice);
+        });
+
+        // Save voice
+        document.getElementById('ic-save-voice')?.addEventListener('click', () => {
+            const voice = getEditorVoiceData();
+            const errors = validateVoiceData(voice);
+            
+            if (errors.length > 0) {
+                showToast(errors[0], 'error', 3000);
+                return;
+            }
+
+            const savedId = saveVoiceToSet(voice);
+            showToast(`${voice.name} saved to voice set!`, 'success', 3000);
+            
+            // Refresh the voices list
+            renderVoicesList();
+            
+            // Clear the editor
+            clearEditor();
+        });
+
+        // Clear editor
+        document.getElementById('ic-clear-editor')?.addEventListener('click', clearEditor);
+
+        // Toggle spawn section based on "always present" selection
+        document.getElementById('ic-edit-always')?.addEventListener('change', (e) => {
+            const spawnSection = document.getElementById('ic-spawn-section');
+            if (spawnSection) {
+                spawnSection.style.display = e.target.value === 'true' ? 'none' : 'block';
+            }
+        });
+
+        // Auto-generate signature from name
+        document.getElementById('ic-edit-name')?.addEventListener('blur', (e) => {
+            const sigInput = document.getElementById('ic-edit-signature');
+            if (sigInput && !sigInput.value.trim()) {
+                const name = e.target.value.trim();
+                sigInput.value = name.replace(/^The\s+/i, '').toUpperCase();
+            }
+        });
         
         // Note: ST events are registered in init() with retry logic
     }

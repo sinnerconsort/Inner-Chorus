@@ -595,6 +595,126 @@
    MOBILE RESPONSIVE
    ═══════════════════════════════════════════════════════════════ */
 
+/* ═══════════════════════════════════════════════════════════════
+   VOICE CREATOR
+   ═══════════════════════════════════════════════════════════════ */
+
+.ic-generator-section {
+    background: linear-gradient(135deg, rgba(124, 111, 159, 0.1) 0%, rgba(30, 30, 46, 0.5) 100%);
+    border-color: var(--ic-accent);
+}
+
+.ic-divider {
+    display: flex;
+    align-items: center;
+    text-align: center;
+    margin: 16px 0;
+    color: var(--ic-text-muted);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.ic-divider::before,
+.ic-divider::after {
+    content: '';
+    flex: 1;
+    border-bottom: 1px solid var(--ic-border);
+}
+
+.ic-divider span {
+    padding: 0 12px;
+}
+
+.ic-editor-section {
+    background: rgba(30, 30, 46, 0.7);
+}
+
+.ic-spawn-section {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px dashed var(--ic-border);
+}
+
+.ic-form-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 16px;
+}
+
+.ic-form-actions .ic-btn {
+    flex: 1;
+}
+
+.ic-preview-section {
+    background: linear-gradient(135deg, rgba(144, 238, 144, 0.05) 0%, rgba(30, 30, 46, 0.5) 100%);
+    border-color: rgba(144, 238, 144, 0.3);
+}
+
+.ic-voice-preview .ic-voice-card {
+    margin: 0;
+}
+
+.ic-voice-personality {
+    font-size: 11px;
+    color: var(--ic-text-secondary);
+    padding: 8px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
+    margin: 8px 0;
+    line-height: 1.5;
+}
+
+.ic-preview-spawn {
+    font-size: 10px;
+    color: var(--ic-text-secondary);
+    padding: 8px;
+    background: rgba(124, 111, 159, 0.1);
+    border-radius: 4px;
+    margin-top: 8px;
+    line-height: 1.6;
+}
+
+.ic-preview-spawn strong {
+    color: var(--ic-accent-bright);
+}
+
+/* Color input styling */
+input[type="color"] {
+    width: 100%;
+    height: 36px;
+    padding: 2px;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+input[type="color"]::-webkit-color-swatch-wrapper {
+    padding: 2px;
+}
+
+input[type="color"]::-webkit-color-swatch {
+    border-radius: 4px;
+    border: none;
+}
+
+/* Textarea improvements */
+.ic-form-group textarea {
+    resize: vertical;
+    min-height: 60px;
+    font-family: inherit;
+    line-height: 1.5;
+}
+
+/* Generator loading state */
+#ic-generate-voice:disabled {
+    opacity: 0.7;
+    cursor: wait;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   MOBILE RESPONSIVE ADDITIONS
+   ═══════════════════════════════════════════════════════════════ */
+
 @media (max-width: 768px) {
     .ic-panel {
         left: 5px;
@@ -616,5 +736,22 @@
 
     .ic-toast {
         max-width: none;
+    }
+
+    .ic-form-actions {
+        flex-direction: column;
+    }
+
+    .ic-form-row {
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .ic-tab span {
+        display: none;
+    }
+
+    .ic-tab i {
+        font-size: 16px;
     }
 }
