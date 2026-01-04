@@ -6,7 +6,7 @@
     "js": "index.js",
     "css": "style.css",
     "author": "Judas",
-    "version": "0.5.0",
-    "description": "Dynamic inner voices with persona-based generation, context-aware spawning, and full customization!",
+    "version": "0.5.1",
+    "description": "Dynamic inner voices with persona-based generation, context-aware spawning, export/import, and full customization!",
     "auto_update": false
 }

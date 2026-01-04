@@ -1286,6 +1286,108 @@ Guidelines:
         };
     }
 
+    // ═══════════════════════════════════════════════════════════════
+    // EXPORT / IMPORT
+    // ═══════════════════════════════════════════════════════════════
+
+    function exportAllProfiles() {
+        const exportData = {
+            version: '0.5.1',
+            exportedAt: new Date().toISOString(),
+            profiles: personaProfiles,
+            currentVoiceSet: getCurrentVoiceSet(),
+            activeVoices: Array.from(activeVoices),
+            voiceMemories
+        };
+
+        const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `inner-chorus-backup-${new Date().toISOString().slice(0, 10)}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+        showToast('Exported all profiles!', 'success', 2000);
+    }
+
+    function exportCurrentVoiceSet() {
+        const exportData = {
+            version: '0.5.1',
+            exportedAt: new Date().toISOString(),
+            type: 'voice_set',
+            voiceSet: getCurrentVoiceSet(),
+            activeVoices: Array.from(activeVoices),
+            voiceMemories
+        };
+
+        const jsonStr = JSON.stringify(exportData, null, 2);
+        
+        // Copy to clipboard
+        navigator.clipboard.writeText(jsonStr).then(() => {
+            showToast('Voice set copied to clipboard!', 'success', 2000);
+        }).catch(() => {
+            // Fallback: show in prompt
+            prompt('Copy this JSON:', jsonStr);
+            showToast('Copy the JSON manually', 'info', 2000);
+        });
+    }
+
+    function importProfileData(jsonStr) {
+        try {
+            const data = JSON.parse(jsonStr);
+            
+            if (!data.version) {
+                throw new Error('Invalid format: missing version');
+            }
+
+            // Handle full backup import
+            if (data.profiles) {
+                // Merge profiles
+                Object.entries(data.profiles).forEach(([id, profile]) => {
+                    // Add timestamp suffix to avoid conflicts
+                    const newId = personaProfiles[id] ? `${id}_imported_${Date.now()}` : id;
+                    personaProfiles[newId] = profile;
+                });
+                showToast(`Imported ${Object.keys(data.profiles).length} profiles!`, 'success', 3000);
+            }
+
+            // Handle voice set import
+            if (data.type === 'voice_set' && data.voiceSet) {
+                const set = getCurrentVoiceSet();
+                
+                // Merge voices
+                Object.entries(data.voiceSet.voices).forEach(([id, voice]) => {
+                    const newId = set.voices[id] ? `${id}_imported_${Date.now()}` : id;
+                    set.voices[newId] = { ...voice, id: newId };
+                });
+
+                // Merge active voices
+                if (data.activeVoices) {
+                    data.activeVoices.forEach(id => activeVoices.add(id));
+                }
+
+                // Merge memories
+                if (data.voiceMemories) {
+                    Object.assign(voiceMemories, data.voiceMemories);
+                }
+
+                showToast('Imported voice set!', 'success', 3000);
+            }
+
+            saveState();
+            renderVoicesList();
+            renderProfilesList();
+            return true;
+        } catch (error) {
+            console.error('[Inner Chorus] Import failed:', error);
+            showToast('Import failed: ' + error.message, 'error', 3000);
+            return false;
+        }
+    }
+
     function updatePersonaPreview() {
         const preview = document.getElementById('ic-persona-preview');
         if (!preview) return;
@@ -1341,7 +1443,7 @@ These should be:
 - INHERENT voices based on personality traits, background, psychology
 - Voices that represent internal conflicts, desires, fears, drives
 - Unique to THIS character - not generic archetypes
-- One should usually be a NARRATOR voice (observational, poetic)
+- One should be a NARRATOR voice (observational, poetic) - this is the ONLY voice that should have alwaysPresent: true
 
 Output ONLY valid JSON array:
 [
@@ -1352,15 +1454,16 @@ Output ONLY valid JSON array:
         "description": "One-line poetic description",
         "personality": "2-4 sentences describing how this voice speaks, what it believes, what it wants. Written as instructions: 'You are THE X - ...'",
         "isCore": true/false,
-        "alwaysPresent": true/false
+        "alwaysPresent": false
     }
 ]
 
 Guidelines:
 - Names should be "The [Concept]" format
+- The signature should MATCH the name (e.g., "The Hollow" = "HOLLOW", "The Echo" = "ECHO")
 - Colors should be evocative of the voice's nature
 - isCore = true for 2-3 central voices that define the character
-- alwaysPresent = true only for the Narrator voice
+- alwaysPresent = false for ALL voices EXCEPT one Narrator-type voice (set that one to true)
 - Make voices SPECIFIC to this character's psychology, not generic
 - Consider: What internal debates does this person have? What parts of themselves do they struggle with?`;
 
@@ -1420,15 +1523,22 @@ Based on this character's personality, background, fears, desires, and psycholog
                 .replace(/^the\s+/, '')
                 .replace(/[^a-z0-9]+/g, '_') + '_' + Date.now() + '_' + index;
 
+            // ENFORCE: Only Narrator-type voices can be alwaysPresent
+            const isNarratorType = voice.name.toLowerCase().includes('narrator');
+            const shouldBeAlwaysPresent = isNarratorType && voice.alwaysPresent;
+
+            // ENFORCE: Signature must match the name
+            const derivedSignature = voice.name.replace(/^The\s+/i, '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+
             const newVoice = {
                 id,
                 name: voice.name,
-                signature: voice.signature || voice.name.replace(/^The\s+/i, '').toUpperCase(),
+                signature: derivedSignature,
                 color: voice.color || '#9932CC',
                 description: voice.description,
                 personality: voice.personality,
-                alwaysPresent: voice.alwaysPresent || false,
-                cannotBeDisabled: voice.alwaysPresent || false,
+                alwaysPresent: shouldBeAlwaysPresent,
+                cannotBeDisabled: shouldBeAlwaysPresent,
                 isCore: voice.isCore || false,
                 generatedFromPersona: true,
                 spawnCondition: null,
@@ -1819,6 +1929,30 @@ Based on this character's personality, background, fears, desires, and psycholog
                             <span>Update Profile</span>
                         </button>
                     </div>
+
+                    <div class="ic-section">
+                        <div class="ic-section-header">
+                            <span><i class="fa-solid fa-file-export"></i> Export / Import</span>
+                        </div>
+                        <p class="ic-hint" style="margin-bottom: 10px;">
+                            Backup your profiles or share voice sets with others.
+                        </p>
+                        <div class="ic-form-row">
+                            <button class="ic-btn ic-btn-sm" id="ic-export-all" style="flex: 1;">
+                                <i class="fa-solid fa-download"></i>
+                                <span>Export All</span>
+                            </button>
+                            <button class="ic-btn ic-btn-sm" id="ic-export-current" style="flex: 1;">
+                                <i class="fa-solid fa-copy"></i>
+                                <span>Copy Current</span>
+                            </button>
+                            <button class="ic-btn ic-btn-sm" id="ic-import-profile" style="flex: 1;">
+                                <i class="fa-solid fa-upload"></i>
+                                <span>Import</span>
+                            </button>
+                        </div>
+                        <input type="file" id="ic-import-file" accept=".json" style="display: none;" />
+                    </div>
                 </div>
 
                 <!-- SETTINGS TAB -->
@@ -1883,7 +2017,7 @@ Based on this character's personality, background, fears, desires, and psycholog
                                 <input type="checkbox" id="ic-contextual-spawn" checked />
                                 <span>Context-aware spawning (AI)</span>
                             </label>
-                            <small class="ic-hint">Uses AI to analyze persona, lorebook, and story context to decide if/what voice should spawn. More nuanced but uses additional API calls.</small>
+                            <small class="ic-hint ic-hint-warning">⚠️ Uses an additional API call per message to analyze context. Disable if you're concerned about API costs or rate limits.</small>
                         </div>
                     </div>
                     <div class="ic-section">
@@ -2549,6 +2683,36 @@ Based on this character's personality, background, fears, desires, and psycholog
         // Update persona preview when switching to Create tab
         document.querySelector('[data-tab="create"]')?.addEventListener('click', () => {
             setTimeout(updatePersonaPreview, 100);
+        });
+
+        // ═══ EXPORT / IMPORT EVENTS ═══
+
+        // Export all profiles
+        document.getElementById('ic-export-all')?.addEventListener('click', exportAllProfiles);
+
+        // Copy current voice set to clipboard
+        document.getElementById('ic-export-current')?.addEventListener('click', exportCurrentVoiceSet);
+
+        // Import profile/voice set
+        document.getElementById('ic-import-profile')?.addEventListener('click', () => {
+            document.getElementById('ic-import-file')?.click();
+        });
+
+        document.getElementById('ic-import-file')?.addEventListener('change', (e) => {
+            const file = e.target.files?.[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const jsonStr = event.target?.result;
+                if (typeof jsonStr === 'string') {
+                    importProfileData(jsonStr);
+                }
+            };
+            reader.readAsText(file);
+            
+            // Reset input so same file can be selected again
+            e.target.value = '';
         });
         
         // Generate voice from prompt
