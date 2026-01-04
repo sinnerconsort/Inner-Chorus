@@ -25,6 +25,7 @@ Your character's psyche becomes a chorus of voices that comment, argue, and evol
 - Same event → different characters → different (or no) voices
 - Considers persona, lorebook, recent story, and user's reaction
 - Can create **brand new voices** tailored to specific moments
+- ⚠️ Uses additional API calls per message
 
 ### 📚 Voice Management
 - **Remove** individual voices from your set
@@ -36,6 +37,11 @@ Your character's psyche becomes a chorus of voices that comment, argue, and evol
 - Save your entire voice configuration per character
 - Load profiles to restore voices, memories, and settings
 - Update profiles as your character evolves
+
+### 📤 Export / Import
+- **Export All** - Download complete backup (all profiles)
+- **Copy Current** - Copy current voice set to clipboard (for sharing)
+- **Import** - Load profiles or voice sets from JSON files
 
 ### ✨ Voice Creator
 - **Generate from description**: "A paranoid voice born from betrayal..."
@@ -60,7 +66,7 @@ Your character's psyche becomes a chorus of voices that comment, argue, and evol
 - **Auto-trigger**: Automatically generate chorus after AI messages
 - **Trigger Delay**: Wait time for streaming to complete (default 1500ms)
 - **Auto-spawn**: Basic keyword-based voice spawning
-- **Context-aware spawning**: AI analyzes persona + context for smart spawning
+- **Context-aware spawning**: AI analyzes persona + context (⚠️ extra API calls)
 
 ### Character Context
 - **POV Style**: Second/third/first person
@@ -82,6 +88,7 @@ Your character's psyche becomes a chorus of voices that comment, argue, and evol
 2. **Organic Growth**: Set voices to dormant, let them awaken naturally  
 3. **Save Profiles**: Save your setup before major story events
 4. **Character Context**: More detail = smarter contextual spawning
+5. **Share Voice Sets**: Use "Copy Current" to share with others
 
 ## Default Voice Set
 
@@ -106,7 +113,7 @@ Inspired by:
 - **Slay the Princess** - The voice system and emergence mechanic
 - **Disco Elysium** - Skills as internal voices with personalities
 
-Created by the bad bitch Sinnerconsort for SillyTavern. Because I'd rather create extensions than actually RP now. Someone please stop me— or give me suggestions.
+Created by Judas for SillyTavern.
 
 ---
 
