@@ -1043,3 +1043,121 @@ input[type="color"]::-webkit-color-swatch {
 .ic-hint-warning {
     color: #FFB347;
 }
+
+
+/* ═══════════════════════════════════════════════════════════════
+   VOICE CONTROLS & LOUDNESS
+   ═══════════════════════════════════════════════════════════════ */
+
+.ic-voice-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 8px;
+}
+
+.ic-loudness-control {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: 1;
+}
+
+.ic-loudness-control label {
+    color: var(--ic-text-muted);
+    font-size: 11px;
+    width: 16px;
+}
+
+.ic-loudness-slider {
+    flex: 1;
+    height: 4px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: var(--ic-bg-dark);
+    border-radius: 2px;
+    outline: none;
+}
+
+.ic-loudness-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--voice-color, var(--ic-primary));
+    cursor: pointer;
+    transition: transform 0.1s ease;
+}
+
+.ic-loudness-slider::-webkit-slider-thumb:hover {
+    transform: scale(1.2);
+}
+
+.ic-loudness-slider::-moz-range-thumb {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--voice-color, var(--ic-primary));
+    cursor: pointer;
+    border: none;
+}
+
+.ic-loudness-value {
+    font-size: 10px;
+    color: var(--ic-text-muted);
+    width: 16px;
+    text-align: center;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   VOICE RELATIONSHIPS
+   ═══════════════════════════════════════════════════════════════ */
+
+.ic-voice-relationships {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 6px;
+}
+
+.ic-relationship {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 6px;
+    border-radius: 10px;
+    font-size: 9px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.ic-relationship:hover {
+    transform: scale(1.05);
+}
+
+.ic-relationship-tension {
+    background: rgba(255, 99, 71, 0.15);
+    color: #FF6347;
+    border: 1px solid rgba(255, 99, 71, 0.3);
+}
+
+.ic-relationship-tension i {
+    color: #FF6347;
+}
+
+.ic-relationship-alliance {
+    background: rgba(144, 238, 144, 0.15);
+    color: #90EE90;
+    border: 1px solid rgba(144, 238, 144, 0.3);
+}
+
+.ic-relationship-alliance i {
+    color: #90EE90;
+}
+
+.ic-relationship-neutral {
+    background: rgba(169, 169, 169, 0.15);
+    color: #A9A9A9;
+    border: 1px solid rgba(169, 169, 169, 0.3);
+}

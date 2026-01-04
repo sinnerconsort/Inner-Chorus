@@ -281,6 +281,24 @@
     // Voice memories - what each voice remembers about why it exists
     let voiceMemories = {};
 
+    // Voice loudness - how often each voice speaks (1-10, default 5)
+    let voiceLoudness = {};
+
+    // Voice relationships - how voices interact with each other
+    let voiceRelationships = {};
+    /*
+    Structure:
+    {
+        "hollow_mongrel": {
+            voiceA: "hollow",
+            voiceB: "mongrel",
+            type: "tension",  // "tension", "alliance", "neutral"
+            dynamic: "The Hollow observes while The Mongrel rages - they see the same emptiness differently",
+            aiGenerated: true
+        }
+    }
+    */
+
     // Conversation history for voices (so they can reference past interactions)
     let voiceHistory = [];
 
@@ -307,6 +325,8 @@
             personaProfiles,
             activeVoices: Array.from(activeVoices),
             voiceMemories,
+            voiceLoudness,
+            voiceRelationships,
             voiceHistory: voiceHistory.slice(-50) // Keep last 50 entries
         };
         
@@ -340,6 +360,8 @@
                 if (state.personaProfiles) personaProfiles = state.personaProfiles;
                 if (state.activeVoices) activeVoices = new Set(state.activeVoices);
                 if (state.voiceMemories) voiceMemories = state.voiceMemories;
+                if (state.voiceLoudness) voiceLoudness = state.voiceLoudness;
+                if (state.voiceRelationships) voiceRelationships = state.voiceRelationships;
                 if (state.voiceHistory) voiceHistory = state.voiceHistory;
                 
                 // Ensure default set exists
@@ -831,14 +853,23 @@ Based on this character's personality and their reaction to this event, should a
         const { minVoices, maxVoices } = extensionSettings;
         const selected = [];
 
-        // Narrator always speaks if present
-        const narrator = voices.find(v => v.id === 'narrator');
-        if (narrator) selected.push(narrator);
+        // Narrator always speaks if present (and has sufficient loudness)
+        const narrator = voices.find(v => v.id === 'narrator' || v.name?.toLowerCase().includes('narrator'));
+        if (narrator) {
+            const narratorLoudness = voiceLoudness[narrator.id] ?? 5;
+            if (narratorLoudness > 0) selected.push(narrator);
+        }
 
-        // Score other voices by relevance
-        const otherVoices = voices.filter(v => v.id !== 'narrator');
+        // Score other voices by relevance and loudness
+        const otherVoices = voices.filter(v => v.id !== 'narrator' && !v.name?.toLowerCase().includes('narrator'));
         const scored = otherVoices.map(voice => {
-            let score = Math.random() * 3; // Base randomness
+            const loudness = voiceLoudness[voice.id] ?? 5; // Default loudness is 5
+            
+            // If loudness is 0, skip this voice entirely
+            if (loudness === 0) return { voice, score: -999 };
+            
+            // Base score incorporates loudness (1-10 scaled to 0-3)
+            let score = (loudness / 10) * 3 + Math.random() * 2;
             
             // Check for keyword relevance
             if (voice.spawnCondition?.keywords) {
@@ -857,7 +888,7 @@ Based on this character's personality and their reaction to this event, should a
             }
 
             return { voice, score };
-        });
+        }).filter(s => s.score > -999); // Remove muted voices
 
         // Sort by score and take top voices
         scored.sort((a, b) => b.score - a.score);
@@ -910,11 +941,37 @@ Based on this character's personality and their reaction to this event, should a
             return `${voice.signature} (${voice.name}): ${voice.personality}${memoryNote}`;
         }).join('\n\n');
 
+        // Build relationship info for selected voices
+        let relationshipSection = '';
+        const relevantRelationships = [];
+        const selectedIds = selectedVoices.map(v => v.id);
+        
+        Object.values(voiceRelationships).forEach(rel => {
+            if (selectedIds.includes(rel.voiceA) && selectedIds.includes(rel.voiceB)) {
+                const voiceA = selectedVoices.find(v => v.id === rel.voiceA);
+                const voiceB = selectedVoices.find(v => v.id === rel.voiceB);
+                if (voiceA && voiceB && rel.type !== 'neutral') {
+                    relevantRelationships.push({
+                        nameA: voiceA.name,
+                        nameB: voiceB.name,
+                        type: rel.type,
+                        dynamic: rel.dynamic
+                    });
+                }
+            }
+        });
+
+        if (relevantRelationships.length > 0) {
+            relationshipSection = `\nVOICE DYNAMICS:\n${relevantRelationships.map(r => 
+                `- ${r.nameA} & ${r.nameB}: ${r.type === 'tension' ? 'TENSION' : 'ALLIANCE'}${r.dynamic ? ` - ${r.dynamic}` : ''}`
+            ).join('\n')}\n`;
+        }
+
         const systemPrompt = `You generate inner voices for a character in a narrative, inspired by Slay the Princess's voice system.
 
 THE VOICES SPEAKING THIS MOMENT:
 ${voiceDescriptions}
-
+${relationshipSection}
 RULES:
 1. ${povInstruction}
 2. Voices REACT to each other - they argue, agree, interrupt, and build on each other's points
@@ -925,6 +982,7 @@ RULES:
 7. Create natural conversational flow - interruptions, agreements, arguments
 8. Voices can directly address or reference each other
 9. Total response: 4-10 voice lines depending on dramatic weight
+10. Use voice dynamics: voices in TENSION should argue/contradict; voices in ALLIANCE should support/agree
 ${contextSection}
 
 Output ONLY the voice dialogue. No meta-text, no explanations.`;
@@ -1292,12 +1350,14 @@ Guidelines:
 
     function exportAllProfiles() {
         const exportData = {
-            version: '0.5.1',
+            version: '0.6.0',
             exportedAt: new Date().toISOString(),
             profiles: personaProfiles,
             currentVoiceSet: getCurrentVoiceSet(),
             activeVoices: Array.from(activeVoices),
-            voiceMemories
+            voiceMemories,
+            voiceLoudness,
+            voiceRelationships
         };
 
         const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
@@ -1315,12 +1375,14 @@ Guidelines:
 
     function exportCurrentVoiceSet() {
         const exportData = {
-            version: '0.5.1',
+            version: '0.6.0',
             exportedAt: new Date().toISOString(),
             type: 'voice_set',
             voiceSet: getCurrentVoiceSet(),
             activeVoices: Array.from(activeVoices),
-            voiceMemories
+            voiceMemories,
+            voiceLoudness,
+            voiceRelationships
         };
 
         const jsonStr = JSON.stringify(exportData, null, 2);
@@ -1372,6 +1434,16 @@ Guidelines:
                 // Merge memories
                 if (data.voiceMemories) {
                     Object.assign(voiceMemories, data.voiceMemories);
+                }
+
+                // Merge loudness settings
+                if (data.voiceLoudness) {
+                    Object.assign(voiceLoudness, data.voiceLoudness);
+                }
+
+                // Merge relationships
+                if (data.voiceRelationships) {
+                    Object.assign(voiceRelationships, data.voiceRelationships);
                 }
 
                 showToast('Imported voice set!', 'success', 3000);
@@ -1683,6 +1755,9 @@ Based on this character's personality, background, fears, desires, and psycholog
                         <div class="ic-section-header">
                             <span>Active Voices</span>
                             <div class="ic-header-actions">
+                                <button class="ic-btn ic-btn-sm" id="ic-gen-relationships" title="Generate voice relationships (AI)">
+                                    <i class="fa-solid fa-heart-pulse"></i>
+                                </button>
                                 <button class="ic-btn ic-btn-sm" id="ic-clear-set" title="Remove all optional voices">
                                     <i class="fa-solid fa-broom"></i>
                                 </button>
@@ -2074,10 +2149,14 @@ Based on this character's personality, background, fears, desires, and psycholog
         let html = voices.map(voice => {
             const isAwake = activeVoices.has(voice.id);
             const memory = voiceMemories[voice.id];
+            const loudness = voiceLoudness[voice.id] ?? 5;
             const canRemove = !voice.cannotBeDisabled; // Can remove if not required
             const isContextual = voice.contextuallySpawned;
             const isPersona = voice.generatedFromPersona;
             const isCore = voice.isCore;
+            
+            // Get relationships for this voice
+            const relationships = getVoiceRelationships(voice.id);
             
             // Determine card styling class
             let cardClass = isAwake ? 'ic-voice-awake' : 'ic-voice-dormant';
@@ -2101,12 +2180,33 @@ Based on this character's personality, background, fears, desires, and psycholog
                     </div>
                     <div class="ic-voice-desc">${voice.description}</div>
                     ${memory ? `<div class="ic-voice-memory">"${memory}"</div>` : ''}
-                    ${!voice.cannotBeDisabled ? `
-                        <button class="ic-btn ic-btn-sm ic-btn-toggle" data-action="${isAwake ? 'silence' : 'awaken'}">
-                            <i class="fa-solid ${isAwake ? 'fa-volume-xmark' : 'fa-volume-high'}"></i>
-                            <span>${isAwake ? 'Silence' : 'Awaken'}</span>
-                        </button>
+                    ${relationships.length > 0 ? `
+                        <div class="ic-voice-relationships">
+                            ${relationships.map(r => `
+                                <span class="ic-relationship ic-relationship-${r.type}" title="${r.dynamic || ''}">
+                                    <i class="fa-solid ${r.type === 'tension' ? 'fa-bolt' : r.type === 'alliance' ? 'fa-handshake' : 'fa-minus'}"></i>
+                                    ${r.otherVoiceName}
+                                </span>
+                            `).join('')}
+                        </div>
                     ` : ''}
+                    <div class="ic-voice-controls">
+                        <div class="ic-loudness-control">
+                            <label title="How often this voice speaks (0 = muted)">
+                                <i class="fa-solid fa-volume-${loudness === 0 ? 'xmark' : loudness < 4 ? 'low' : loudness < 7 ? 'high' : 'high'}"></i>
+                            </label>
+                            <input type="range" class="ic-loudness-slider" 
+                                   min="0" max="10" value="${loudness}" 
+                                   data-voice-id="${voice.id}" />
+                            <span class="ic-loudness-value">${loudness}</span>
+                        </div>
+                        ${!voice.cannotBeDisabled ? `
+                            <button class="ic-btn ic-btn-sm ic-btn-toggle" data-action="${isAwake ? 'silence' : 'awaken'}">
+                                <i class="fa-solid ${isAwake ? 'fa-volume-xmark' : 'fa-volume-high'}"></i>
+                                <span>${isAwake ? 'Silence' : 'Awaken'}</span>
+                            </button>
+                        ` : ''}
+                    </div>
                 </div>
             `;
         }).join('');
@@ -2182,6 +2282,144 @@ Based on this character's personality, background, fears, desires, and psycholog
                 addVoiceToSet(voiceId);
             });
         });
+
+        // Loudness sliders
+        container.querySelectorAll('.ic-loudness-slider').forEach(slider => {
+            slider.addEventListener('input', (e) => {
+                const voiceId = e.target.dataset.voiceId;
+                const value = parseInt(e.target.value);
+                voiceLoudness[voiceId] = value;
+                
+                // Update display
+                const valueEl = e.target.parentElement.querySelector('.ic-loudness-value');
+                if (valueEl) valueEl.textContent = value;
+                
+                // Update icon
+                const iconEl = e.target.parentElement.querySelector('i');
+                if (iconEl) {
+                    iconEl.className = `fa-solid fa-volume-${value === 0 ? 'xmark' : value < 4 ? 'low' : 'high'}`;
+                }
+            });
+            
+            // Save on change (not every input)
+            slider.addEventListener('change', () => {
+                saveState();
+            });
+        });
+
+        // Relationship clicks (for editing)
+        container.querySelectorAll('.ic-relationship').forEach(rel => {
+            rel.addEventListener('click', (e) => {
+                const card = e.target.closest('.ic-voice-card');
+                const voiceId = card.dataset.voiceId;
+                // Could open relationship editor modal here
+                showToast('Relationship editing coming soon!', 'info', 2000);
+            });
+        });
+    }
+
+    // Get relationships for a specific voice
+    function getVoiceRelationships(voiceId) {
+        const set = getCurrentVoiceSet();
+        const relationships = [];
+        
+        Object.values(voiceRelationships).forEach(rel => {
+            if (rel.voiceA === voiceId || rel.voiceB === voiceId) {
+                const otherId = rel.voiceA === voiceId ? rel.voiceB : rel.voiceA;
+                const otherVoice = set.voices[otherId];
+                if (otherVoice) {
+                    relationships.push({
+                        ...rel,
+                        otherVoiceId: otherId,
+                        otherVoiceName: otherVoice.name.replace(/^The\s+/i, '')
+                    });
+                }
+            }
+        });
+        
+        return relationships;
+    }
+
+    // Set a relationship between two voices
+    function setVoiceRelationship(voiceA, voiceB, type, dynamic = '') {
+        const key = [voiceA, voiceB].sort().join('_');
+        voiceRelationships[key] = {
+            voiceA,
+            voiceB,
+            type, // 'tension', 'alliance', 'neutral'
+            dynamic,
+            userSet: true
+        };
+        saveState();
+    }
+
+    // Generate relationships for current voice set using AI
+    async function generateVoiceRelationships() {
+        const set = getCurrentVoiceSet();
+        const voices = Object.values(set.voices);
+        
+        if (voices.length < 2) {
+            showToast('Need at least 2 voices for relationships', 'error', 2000);
+            return;
+        }
+
+        const systemPrompt = `You analyze internal psychological voices and determine their relationships.
+
+Given a set of voices (like Disco Elysium skills or Slay the Princess voices), determine which pairs have notable dynamics.
+
+Output ONLY valid JSON array of relationships:
+[
+    {
+        "voiceA": "voice_id_1",
+        "voiceB": "voice_id_2", 
+        "type": "tension",
+        "dynamic": "Brief description of how they interact/conflict"
+    }
+]
+
+Types:
+- "tension" - They argue, contradict, oppose each other
+- "alliance" - They support, agree with, reinforce each other
+- "neutral" - No strong dynamic (don't include these)
+
+Only include notable relationships, not every pair. Maximum 6-8 relationships.`;
+
+        const voiceList = voices.map(v => `- ${v.id}: ${v.name} - ${v.description}`).join('\n');
+        const userPrompt = `Analyze these internal voices and identify their relationships:\n\n${voiceList}`;
+
+        try {
+            const response = await callAPI(systemPrompt, userPrompt);
+            
+            let jsonStr = response;
+            const jsonMatch = response.match(/\[[\s\S]*\]/);
+            if (jsonMatch) {
+                jsonStr = jsonMatch[0];
+            }
+            
+            const relationships = JSON.parse(jsonStr);
+            
+            if (!Array.isArray(relationships)) {
+                throw new Error('Invalid response format');
+            }
+
+            // Store relationships
+            relationships.forEach(rel => {
+                if (rel.voiceA && rel.voiceB && rel.type) {
+                    const key = [rel.voiceA, rel.voiceB].sort().join('_');
+                    voiceRelationships[key] = {
+                        ...rel,
+                        aiGenerated: true
+                    };
+                }
+            });
+
+            saveState();
+            renderVoicesList();
+            return relationships.length;
+        } catch (error) {
+            console.error('[Inner Chorus] Relationship generation failed:', error);
+            throw error;
+        }
     }
 
     function removeVoiceFromSet(voiceId) {
@@ -2596,6 +2834,27 @@ Based on this character's personality, background, fears, desires, and psycholog
             const container = document.getElementById('ic-chorus-output');
             if (container) {
                 container.innerHTML = '<div class="ic-empty-state"><i class="fa-solid fa-comment-slash"></i><span>The voices are quiet...</span></div>';
+            }
+        });
+
+        // Generate voice relationships
+        document.getElementById('ic-gen-relationships')?.addEventListener('click', async () => {
+            const btn = document.getElementById('ic-gen-relationships');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+            
+            const loadingToast = showToast('Analyzing voice dynamics...', 'loading');
+
+            try {
+                const count = await generateVoiceRelationships();
+                hideToast(loadingToast);
+                showToast(`Generated ${count} relationships!`, 'success', 3000);
+            } catch (error) {
+                hideToast(loadingToast);
+                showToast('Failed to generate relationships', 'error', 3000);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-heart-pulse"></i>';
             }
         });
 
